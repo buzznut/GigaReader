@@ -1,0 +1,2 @@
+1.0.312.761 - 2025/08/08 08:15:26
+    1) Minor bug fixes, performance improvements, or setup changes.

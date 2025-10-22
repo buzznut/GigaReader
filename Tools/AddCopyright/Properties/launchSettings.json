@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "AddCopyright": {
+      "commandName": "Project",
+      "commandLineArgs": "/root=$(SolutionDir) -text=$(SolutionDir)Documentation\\Copyright.txt --change --force"
+    }
+  }
+}

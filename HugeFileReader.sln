@@ -1,0 +1,107 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.14.36401.2
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "HugeFileReader", "HugeFileReader\HugeFileReader.csproj", "{7870E41D-FA52-C1C5-AB8F-15CE3F2A060A}"
+	ProjectSection(ProjectDependencies) = postProject
+		{7CEC0612-0B1F-A04A-D610-C08F60A13DB7} = {7CEC0612-0B1F-A04A-D610-C08F60A13DB7}
+		{D464217D-4061-645E-B063-4F978CCD3420} = {D464217D-4061-645E-B063-4F978CCD3420}
+		{FA9A2FFA-38C5-BD92-0451-57219F7E976A} = {FA9A2FFA-38C5-BD92-0451-57219F7E976A}
+	EndProjectSection
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{02EA681E-C7D8-13C7-8484-4AC65E1B71E8}"
+	ProjectSection(SolutionItems) = preProject
+		.editorconfig = .editorconfig
+		GlobalAssemblyInfo.tt = GlobalAssemblyInfo.tt
+	EndProjectSection
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Documentation", "Documentation", "{AA1F2F40-410F-421E-99B6-82C63EC30225}"
+	ProjectSection(SolutionItems) = preProject
+		HugeFileReader\default.ico = HugeFileReader\default.ico
+	EndProjectSection
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Tools", "Tools", "{76695AFF-962C-48E3-AF05-43877BEB6216}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AddCopyright", "Tools\AddCopyright\AddCopyright.csproj", "{D464217D-4061-645E-B063-4F978CCD3420}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BumpVersion", "Tools\BumpVersion\BumpVersion.csproj", "{7CEC0612-0B1F-A04A-D610-C08F60A13DB7}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BuildSetups", "Tools\UpdateInfo\BuildSetups.csproj", "{FA9A2FFA-38C5-BD92-0451-57219F7E976A}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Installers", "Installers", "{35062D14-C61A-4F3F-A08E-4AC6AA1D6693}"
+	ProjectSection(SolutionItems) = preProject
+		Installers\BuildSetupArgs.txt = Installers\BuildSetupArgs.txt
+		Installers\Changes.txt = Installers\Changes.txt
+		Installers\ProjectsToSign.txt = Installers\ProjectsToSign.txt
+		Installers\selfsigncert.pfx = Installers\selfsigncert.pfx
+	EndProjectSection
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "HugeFileReader", "HugeFileReader", "{F764259F-85C5-422D-A46C-E0B8DDE090CB}"
+	ProjectSection(SolutionItems) = preProject
+		Installers\HugeFileReader\HugeFileReader.iss = Installers\HugeFileReader\HugeFileReader.iss
+		Installers\HugeFileReader\HugeFileReaderChangelog.txt = Installers\HugeFileReader\HugeFileReaderChangelog.txt
+		Installers\HugeFileReader\HugeFileReaderUpdate.xml = Installers\HugeFileReader\HugeFileReaderUpdate.xml
+	EndProjectSection
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Output", "Output", "{4C3D1B93-3D93-408C-9B20-21C2F9D4551D}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Includes", "Includes", "{659329DD-0E22-4D1B-9588-A6B11FE65F41}"
+	ProjectSection(SolutionItems) = preProject
+		Installers\includes\CodeDependencies.iss = Installers\includes\CodeDependencies.iss
+	EndProjectSection
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Dependencies", "Dependencies", "{32F76CB0-7624-47CD-9BFA-33752A0B0FDF}"
+	ProjectSection(SolutionItems) = preProject
+		Installers\dependencies\netcorecheck.exe = Installers\dependencies\netcorecheck.exe
+		Installers\dependencies\netcorecheck_x64.exe = Installers\dependencies\netcorecheck_x64.exe
+	EndProjectSection
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "UtilitiesLibrary", "UtilitiesLibrary\UtilitiesLibrary.csproj", "{F853E65E-3FBE-4693-9507-35D35A7F3C6D}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "UtilitiesLibraryTest", "UtilitiesLibraryTest\UtilitiesLibraryTest.csproj", "{0DBD9665-22CE-4B2F-9620-31F591224176}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{7870E41D-FA52-C1C5-AB8F-15CE3F2A060A}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{7870E41D-FA52-C1C5-AB8F-15CE3F2A060A}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{7870E41D-FA52-C1C5-AB8F-15CE3F2A060A}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{7870E41D-FA52-C1C5-AB8F-15CE3F2A060A}.Release|Any CPU.Build.0 = Release|Any CPU
+		{D464217D-4061-645E-B063-4F978CCD3420}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{D464217D-4061-645E-B063-4F978CCD3420}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{D464217D-4061-645E-B063-4F978CCD3420}.Release|Any CPU.Build.0 = Release|Any CPU
+		{7CEC0612-0B1F-A04A-D610-C08F60A13DB7}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{7CEC0612-0B1F-A04A-D610-C08F60A13DB7}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{7CEC0612-0B1F-A04A-D610-C08F60A13DB7}.Release|Any CPU.Build.0 = Release|Any CPU
+		{FA9A2FFA-38C5-BD92-0451-57219F7E976A}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{FA9A2FFA-38C5-BD92-0451-57219F7E976A}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{FA9A2FFA-38C5-BD92-0451-57219F7E976A}.Release|Any CPU.Build.0 = Release|Any CPU
+		{F853E65E-3FBE-4693-9507-35D35A7F3C6D}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{F853E65E-3FBE-4693-9507-35D35A7F3C6D}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{F853E65E-3FBE-4693-9507-35D35A7F3C6D}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{F853E65E-3FBE-4693-9507-35D35A7F3C6D}.Release|Any CPU.Build.0 = Release|Any CPU
+		{0DBD9665-22CE-4B2F-9620-31F591224176}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{0DBD9665-22CE-4B2F-9620-31F591224176}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{0DBD9665-22CE-4B2F-9620-31F591224176}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{0DBD9665-22CE-4B2F-9620-31F591224176}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{D464217D-4061-645E-B063-4F978CCD3420} = {76695AFF-962C-48E3-AF05-43877BEB6216}
+		{7CEC0612-0B1F-A04A-D610-C08F60A13DB7} = {76695AFF-962C-48E3-AF05-43877BEB6216}
+		{FA9A2FFA-38C5-BD92-0451-57219F7E976A} = {76695AFF-962C-48E3-AF05-43877BEB6216}
+		{F764259F-85C5-422D-A46C-E0B8DDE090CB} = {35062D14-C61A-4F3F-A08E-4AC6AA1D6693}
+		{4C3D1B93-3D93-408C-9B20-21C2F9D4551D} = {F764259F-85C5-422D-A46C-E0B8DDE090CB}
+		{659329DD-0E22-4D1B-9588-A6B11FE65F41} = {F764259F-85C5-422D-A46C-E0B8DDE090CB}
+		{32F76CB0-7624-47CD-9BFA-33752A0B0FDF} = {F764259F-85C5-422D-A46C-E0B8DDE090CB}
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {7B840B5C-6839-4281-B9E8-07D828E81342}
+	EndGlobalSection
+EndGlobal

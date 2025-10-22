@@ -1,0 +1,9 @@
+// All lines that start with the '+' character will be included in the changelog file.
+// On lines that are included in the changelog, the '+' character will be changed to a '-' character.
+// Lines that do not start with a '+' are ignored.
+// All lines added to changelog file are trimed.
+// Allowed prefixes: "all=" or the "project=" name are allowed. Project names may be separated by commas.
+// --
+// If Git commits are included then previously included git commits are included as
+// "-git(id)=CommitText" to prevent multiple inclusions.
+
