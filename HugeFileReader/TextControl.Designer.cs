@@ -47,6 +47,7 @@ partial class TextControl
         components = new System.ComponentModel.Container();
         timerSetStatus = new System.Windows.Forms.Timer(components);
         timerCursor = new System.Windows.Forms.Timer(components);
+        timerStateHandler = new System.Windows.Forms.Timer(components);
         SuspendLayout();
         // 
         // timerSetStatus
@@ -58,6 +59,11 @@ partial class TextControl
         timerCursor.Enabled = true;
         timerCursor.Interval = 500;
         timerCursor.Tick += timerCursor_Tick;
+        // 
+        // timerStateHandler
+        // 
+        timerStateHandler.Enabled = true;
+        timerStateHandler.Tick += stateHandler_Tick;
         // 
         // TextControl
         // 
@@ -86,4 +92,5 @@ partial class TextControl
 
     private System.Windows.Forms.Timer timerSetStatus;
     private System.Windows.Forms.Timer timerCursor;
+    private System.Windows.Forms.Timer timerStateHandler;
 }

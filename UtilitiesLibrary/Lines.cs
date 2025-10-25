@@ -5,8 +5,10 @@
 // =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 // <@$&< copyright end >&$@>
 
+using System.Collections.Concurrent;
 using System.ComponentModel;
 using System.Diagnostics;
+using System.Security.Cryptography;
 using System.Text;
 
 namespace UtilitiesLibrary;
@@ -33,18 +35,18 @@ public class Lines : IDisposable
     private readonly MRUCache<long, string> lineToText = new MRUCache<long, string>(2000);
     private readonly Stopwatch stopwatch = new Stopwatch();
     private string filePath;
-    private StateChangedDelegate sendState;
     private long lineCount;
     private string indexPath;
     private Decoder decoder = null;
+    private string decoderText = null;
     private FileStream textFile = null;
     private Microsoft.Win32.SafeHandles.SafeFileHandle textHandle = null;
     private FileStream indexFile = null;
     private Microsoft.Win32.SafeHandles.SafeFileHandle indexHandle = null;
     private int eolLen = 0;
+    private ConcurrentDictionary<string, object> state;
 
-    public delegate void StateChangedDelegate(IDictionary<string, object> state);
-
+    public const string LinesStatusKey = "Lines.Status";
     public const string LinesStateKey = "Lines.State";
     public const string LinesProgressKey = "Lines.Progress";
     public const string LinesFileKey = "Lines.File";
@@ -70,14 +72,19 @@ public class Lines : IDisposable
         { LinesMaxLineKey, typeof(long) },
     };
 
-    public Lines(StateChangedDelegate stateChangedDelegate)
+    public Lines(ConcurrentDictionary<string, object> stateChanged)
     {
-        sendState = stateChangedDelegate;
+        state = stateChanged;
     }
 
     public void Load(string file)
     {
         loadWorker?.Dispose();
+        loadWorker = null;
+        if (!File.Exists(file))
+        {
+            throw new FileNotFoundException("File not found", file);
+        }
 
         loadWorker = new BackgroundWorker();
         loadWorker.WorkerSupportsCancellation = true;
@@ -90,18 +97,19 @@ public class Lines : IDisposable
 
         filePath = file;
 
-        if (sendState != null)
-        {
-            Dictionary<string, object> state = new Dictionary<string, object>();
-            state[LinesStateKey] = "Loading";
-            state[LinesProgressKey] = 0;
-            state[LinesFileKey] = file;
-            sendState(state);
-            state[LinesLoadedKey] = false;
-        }
+        AddState(LinesStateKey, "Loading");
+        AddState(LinesProgressKey, 0);
+        AddState(LinesFileKey, file);
+        AddState(LinesLoadedKey, false);
 
         stopwatch.Restart();
         loadWorker.RunWorkerAsync(file);
+    }
+
+    private void AddState(string key, object value)
+    {
+        if (state == null) return;
+        state[key] = value;
     }
 
     private void LoadCompleted(object sender, RunWorkerCompletedEventArgs e)
@@ -110,73 +118,301 @@ public class Lines : IDisposable
         loadWorker?.Dispose();
         loadWorker = null;
 
-        if (sendState == null) return;
+        AddState(LinesElapsedKey, stopwatch.Elapsed);
 
-        Dictionary<string, object> state = new Dictionary<string, object>();
-        state[LinesElapsedKey] = stopwatch.Elapsed;
-        state[LinesLoadedKey] = false;
-
-        try
+        if (e.Error != null)
         {
-            if (e.Error != null)
-            {
-                state[LinesStateKey] = "Error";
-                state[LinesErrorKey] = e.Error;
-                state[LinesReasonKey] = e.Error.Message;
-                return;
-            }
-
-            if (e.Cancelled)
-            {
-                state[LinesStateKey] = "Cancelled";
-                state[LinesReasonKey] = "File load cancelled";
-                return;
-            }
-
-            state[LinesStateKey] = "Done";
-            state[LinesProgressKey] = 1000;
-            state[LinesLoadedKey] = true;
-        }
-        finally
-        {
-            sendState(state);
+            AddState(LinesStateKey, "Error");
+            AddState(LinesErrorKey, e.Error);
+            AddState(LinesReasonKey, e.Error.Message);
+            return;
         }
 
+        if (e.Cancelled)
+        {
+            AddState(LinesStateKey, "Cancelled");
+            AddState(LinesReasonKey, "File load cancelled");
+            return;
+        }
 
+        AddState(LinesStateKey, "Done");
+        AddState(LinesProgressKey, 1000);
+        AddState(LinesLoadedKey, true);
     }
 
     private void LoadProgress(object sender, ProgressChangedEventArgs e)
     {
-        if (sendState == null) return;
+        AddState(LinesStateKey, "Loading");
+        AddState(LinesProgressKey, e.ProgressPercentage);
+        AddState(LinesMaxLineKey, Rows);
+    }
 
-        Dictionary<string, object> state = new Dictionary<string, object>();
-        state[LinesStateKey] = "Loading";
-        state[LinesProgressKey] = e.ProgressPercentage;
-        state[LinesElapsedKey] = stopwatch.Elapsed;
-        state[LinesMaxLineKey] = Rows;
-        sendState(state);
+    /// <summary>
+    /// Computes the SHA-512 checksum of a file using a stream.
+    /// </summary>
+    /// <param name="filePath">Path to the file.</param>
+    /// <returns>Hexadecimal string of the SHA-512 hash.</returns>
+    public static byte[] GetFileSha512(Stream stream)
+    {
+        // Validate file existence
+        if (stream == null)
+        {
+            throw new ArgumentNullException(nameof(stream));
+        }
+
+        try
+        {
+            stream.Position = 0;
+            using (SHA512 sha512 = SHA512.Create())
+            {
+                // Compute hash from stream
+                byte[] hashBytes = sha512.ComputeHash(stream);
+                return hashBytes;
+            }
+        }
+        catch (UnauthorizedAccessException)
+        {
+            throw new UnauthorizedAccessException("Access to the file is denied.");
+        }
+        catch (IOException ex)
+        {
+            throw new IOException("An I/O error occurred while reading the file.", ex);
+        }
     }
 
     private void DoLoad(object sender, DoWorkEventArgs e)
     {
-        if (sender is not BackgroundWorker bw || e.Argument is not string path)
+        try
         {
-            throw new ArgumentException("Invalid argument");
+            if (sender is not BackgroundWorker bw || e.Argument is not string path)
+            {
+                throw new ArgumentException("Invalid argument");
+            }
+
+            textFile = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read, BufferSize, true);
+            textHandle = textFile.SafeFileHandle;
+
+            Interlocked.Exchange(ref fileSize, textFile.Length);
+
+            string tmpDir = Path.Combine(Path.GetTempPath(), "HFR");
+            Directory.CreateDirectory(tmpDir);
+
+            string fname = Path.GetFileNameWithoutExtension(path);
+            string metaDataRoot = GetMD5HashString(path.ToLower());
+
+            string jsonPath = Path.Combine(tmpDir, metaDataRoot + ".hfr-json");
+            indexPath = Path.Combine(tmpDir, metaDataRoot + ".hfr-index");
+
+            Dictionary<string, object> headerInfo = null;
+
+            AddState(LinesStatusKey, "Checking index file.");
+
+            byte[] hash = GetFileSha512(textFile);
+            textFile.Position = 0;
+            string[] headers = { "HashText", "Rows", "Cols", "Bom", "Decoder", "EolLen" };
+
+            if (File.Exists(jsonPath))
+            {
+                // load header file
+                string jsonText = File.ReadAllText(jsonPath);
+                headerInfo = Newtonsoft.Json.JsonConvert.DeserializeObject<Dictionary<string, object>>(jsonText);
+            }
+
+            if (headerInfo == null)
+            {
+                // create header file
+                headerInfo = new Dictionary<string, object>();
+            }
+
+            bool mustRebuildIndex = !File.Exists(indexPath);
+            bool changedInfoHeader = false;
+            foreach (string header in headers)
+            {
+                switch (header)
+                {
+                    case "HashText":
+                    {
+                        string currentHash = Convert.ToBase64String(hash);
+                        if (headerInfo.TryGetValue(header, out object obj) == false)
+                        {
+                            headerInfo[header] = currentHash;
+                            changedInfoHeader = true;
+                            mustRebuildIndex = true;
+                            break;
+                        }
+
+                        string existingHash = obj as string;
+
+                        if (existingHash != currentHash)
+                        {
+                            // hashes don't match, need to reprocess index
+                            if (File.Exists(indexPath)) File.Delete(indexPath);
+                            headerInfo[header] = currentHash;
+                            changedInfoHeader = true;
+                            mustRebuildIndex = true;
+                        }
+                        break;
+                    }
+
+                    case "Rows":
+                    {
+                        if (headerInfo.TryGetValue(header, out object obj) == false)
+                        {
+                            headerInfo[header] = 0L;
+                            changedInfoHeader = true;
+                            mustRebuildIndex = true;
+                            break;
+                        }
+
+                        long lc = Convert.ToInt64(obj);
+                        Interlocked.Exchange(ref lineCount, lc);
+
+                        break;
+                    }
+
+                    case "Cols":
+                    {
+                        if (headerInfo.TryGetValue(header, out object obj) == false)
+                        {
+                            headerInfo[header] = 0L;
+                            changedInfoHeader = true;
+                            mustRebuildIndex = true;
+                            break;
+                        }
+
+                        int cc = Convert.ToInt32(obj);
+                        Interlocked.Exchange(ref colCount, cc);
+
+                        break;
+                    }
+
+                    case "Bom":
+                    {
+                        if (headerInfo.TryGetValue(header, out object obj) == false)
+                        {
+                            headerInfo[header] = (int)BOMType.ANSI;
+                            changedInfoHeader = true;
+                            mustRebuildIndex = true;
+                            break;
+                        }
+
+                        int b = Convert.ToInt32(obj);
+                        Interlocked.Exchange(ref bom, b);
+                        break;
+                    }
+
+                    case "EolLen":
+                    {
+                        if (headerInfo.TryGetValue(header, out object obj) == false)
+                        {
+                            headerInfo[header] = 0;
+                            changedInfoHeader = true;
+                            mustRebuildIndex = true;
+                            break;
+                        }
+
+                        eolLen = Convert.ToInt32(obj);
+                        break;
+                    }
+
+                    case "Decoder":
+                    {
+                        if (headerInfo.TryGetValue(header, out object obj) == false)
+                        {
+                            headerInfo[header] = "Default";
+                            changedInfoHeader = true;
+                            mustRebuildIndex = true;
+                            break;
+                        }
+
+                        string decoderName = obj as string;
+                        switch (decoderName)
+                        {
+                            case "UTF8":
+                                decoder = Encoding.UTF8.GetDecoder();
+                                break;
+                            case "UTF16BE":
+                                decoder = Encoding.BigEndianUnicode.GetDecoder();
+                                break;
+                            case "UTF16LE":
+                                decoder = Encoding.Unicode.GetDecoder();
+                                break;
+                            default:
+                                decoder = Encoding.Default.GetDecoder();
+                                break;
+                        }
+                        break;
+                    }
+                }
+            }
+
+            indexFile = new FileStream(
+                indexPath,
+                FileMode.OpenOrCreate,
+                FileAccess.ReadWrite,
+                FileShare.None,
+                32768,
+                FileOptions.Asynchronous | FileOptions.RandomAccess);
+            indexHandle = indexFile.SafeFileHandle;
+
+            bool goodIndex = !mustRebuildIndex;
+            if (mustRebuildIndex)
+            {
+                AddState(LinesStatusKey, "Building index.");
+
+                goodIndex = RebuildIndex(bw, path);
+                if (goodIndex)
+                {
+                    headerInfo["Rows"] = Interlocked.Add(ref lineCount, 0);
+                    headerInfo["Cols"] = Interlocked.Add(ref colCount, 0);
+                    headerInfo["Bom"] = (int)BOM;
+                    headerInfo["EolLen"] = eolLen;
+                    headerInfo["Decoder"] = decoderText;
+                    changedInfoHeader = true;
+                    bw.ReportProgress(1000);
+                }
+            }
+            else
+            {
+                lineToText.Clear();
+                bw.ReportProgress(1000);
+            }
+
+            if (goodIndex && changedInfoHeader)
+            {
+                // save header info
+                string jsonText = Newtonsoft.Json.JsonConvert.SerializeObject(headerInfo, Newtonsoft.Json.Formatting.Indented);
+                File.WriteAllText(jsonPath, jsonText);
+            }
+
         }
+        catch (Exception ex)
+        {
 
-        textFile = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read, BufferSize, true);
-        textHandle = textFile.SafeFileHandle;
+            throw;
+        }
+    }
 
-        indexPath = Path.GetTempFileName();
-        indexFile = new FileStream(
-            indexPath, 
-            FileMode.OpenOrCreate, 
-            FileAccess.ReadWrite, 
-            FileShare.None, 
-            32768, 
-            FileOptions.Asynchronous | FileOptions.RandomAccess | FileOptions.DeleteOnClose);
-        indexHandle = indexFile.SafeFileHandle;
+    private string GetMD5HashString(string input)
+    {
+        using (MD5 md5 = MD5.Create())
+        {
+            byte[] inputBytes = Encoding.UTF8.GetBytes(input);
+            byte[] hashBytes = md5.ComputeHash(inputBytes);
 
+            // Convert byte array to hexadecimal string
+            StringBuilder sb = new StringBuilder();
+            foreach (byte b in hashBytes)
+            {
+                sb.Append(b.ToString("x2")); // Lowercase hex format
+            }
+            return sb.ToString();
+        }
+    }
+
+    private bool RebuildIndex(BackgroundWorker bw, string path)
+    {
+        bool success = false;
         using (MemoryStream block = new MemoryStream())
         {
             Interlocked.Exchange(ref lineCount, 0);
@@ -187,7 +423,6 @@ public class Lines : IDisposable
                 {
                     Interlocked.Exchange(ref colCount, 0);
                     Interlocked.Exchange(ref bom, (int)BOMType.ANSI);
-                    Interlocked.Exchange(ref fileSize, textFile.Length);
 
                     byte[] buffer = new byte[BufferSize];
                     long pos = 0;
@@ -249,6 +484,7 @@ public class Lines : IDisposable
                                     Interlocked.Exchange(ref bom, (int)BOMType.UTF16BE);
                                     pos = 2;
                                     decoder = Encoding.BigEndianUnicode.GetDecoder();
+                                    decoderText = "UTF16BE";
                                     charLen = 2;
                                 }
                                 else if (buffer[0] == 0xFF && buffer[1] == 0xFE)
@@ -257,6 +493,7 @@ public class Lines : IDisposable
                                     Interlocked.Exchange(ref bom, (int)BOMType.UTF16LE);
                                     pos = 2;
                                     decoder = Encoding.Unicode.GetDecoder();
+                                    decoderText = "UTF16LE";
                                     charLen = 2;
                                 }
                             }
@@ -269,7 +506,7 @@ public class Lines : IDisposable
                                     Interlocked.Exchange(ref bom, (int)BOMType.UTF8);
                                     pos = 3;
                                     decoder = Encoding.UTF8.GetDecoder();
-
+                                    decoderText = "UTF8";
                                     charLen = 1;
                                 }
                             }
@@ -281,7 +518,7 @@ public class Lines : IDisposable
                             Interlocked.Exchange(ref bom, (int)BOMType.ANSI);
                             pos = 0;
                             decoder = Encoding.Default.GetDecoder();
-
+                            decoderText = "ASCII";
                             charLen = 1;
                         }
 
@@ -371,7 +608,7 @@ public class Lines : IDisposable
                         Interlocked.Add(ref lineCount, blockCount);
                     }
 
-                    bw.ReportProgress(100);
+                    success = true;
                 }
                 catch (Exception ex)
                 {
@@ -389,6 +626,8 @@ public class Lines : IDisposable
 
         // Wait for finalizers to complete
         GC.WaitForPendingFinalizers();
+
+        return success;
     }
 
     private void AppendLineInfo(Stream block, long lineStartPos)
@@ -431,8 +670,10 @@ public class Lines : IDisposable
                     Debugger.Log(4, "Exception", ex.Message);
                     Debugger.Break();
                 }
-                return null;
+                //return null;
             }
+
+            return null;
         }
     }
 
@@ -551,24 +792,8 @@ public class Lines : IDisposable
                 textFile = null;
                 textHandle = null;
 
-                if (!string.IsNullOrEmpty(indexPath) && File.Exists(indexPath))
-                {
-                    try
-                    {
-                        File.Delete(indexPath);
-                    }
-                    catch (Exception ex)
-                    {
-                        if (Debugger.IsAttached)
-                        {
-                            Debugger.Log(4, "Exception", ex.Message);
-                            Debugger.Break();
-                        }
-                    }
-
-                    indexPath = null;
-                }
-
+                indexPath = null;
+                indexHandle = null;
                 lineToText.Clear();
             }
 
@@ -628,12 +853,12 @@ public class Lines : IDisposable
 
     private void SearchStateDelegate(IDictionary<string, object> findState)
     {
-        Dictionary<string, object> state = new Dictionary<string, object>();
-        foreach (string key in findState.Keys)
+        if (state != null) return;
+
+        foreach (KeyValuePair<string, object> kv in findState)
         {
-            state[key] = findState[key];
+            AddState(kv.Key, kv.Value);
         }
-        sendState(state);
     }
 
     public bool IsSearching()

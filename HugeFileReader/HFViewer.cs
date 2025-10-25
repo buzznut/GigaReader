@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
+using System.Linq;
 using System.Runtime.Versioning;
 using System.Threading.Tasks;
 using System.Windows.Forms;
@@ -19,7 +20,11 @@ public partial class HFViewer : Form
 
     public HFViewer(string file)
     {
+        SuspendLayout();
         InitializeComponent();
+
+        cursorText.Text = string.Empty;
+        cursorText.Visible = false;
 
         findToolStripMenuItem.Enabled = false;
 
@@ -34,6 +39,7 @@ public partial class HFViewer : Form
         textControl.RegisterStateHandler(ErrorHandler, Search.SearchErrorKey);
         textControl.RegisterStateHandler(CursorHandler, TextControl.CursorKey);
         textControl.RegisterStateHandler(ProgressHandler, Lines.LinesMaxLineKey);
+        textControl.RegisterStateHandler(SetStatus, Lines.LinesStatusKey);
 
         if (file != null)
         {
@@ -41,13 +47,23 @@ public partial class HFViewer : Form
             textControl.Open(file);
             textControl.Focus();
         }
+
+        ResumeLayout();
+    }
+
+    private void SetStatus(KeyValuePair<string, object> state)
+    {
+        if (state.Value != null && state.Value != null)
+        {
+            AddStatus(state.Value.ToString() ?? "Error");
+        }
     }
 
     private void ElapsedHandler(KeyValuePair<string, object> state)
     {
         if (state.Value is TimeSpan span)
         {
-            SetStatus($"Elapsed: {span}");
+            AddStatus($"Elapsed: {span}");
         }
     }
 
@@ -55,7 +71,7 @@ public partial class HFViewer : Form
     {
         if (state.Value is long[] v && v != null && v.Length == 2)
         {
-            if (cursorRow == v[0] && cursorCol == v[1]) return;
+            if (cursorRow >= 0 && cursorCol >= 0 && cursorRow == v[0] && cursorCol == v[1]) return;
 
             cursorRow = v[0];
             cursorCol = (int)v[1];
@@ -82,9 +98,11 @@ public partial class HFViewer : Form
         }
     }
 
-    private void LinesLoadedHandler(KeyValuePair<string, object> state)
+    private void LinesLoadedHandler(KeyValuePair<string, object> kvp)
     {
-        progressBar.Visible = false;
+        bool loaded = kvp.Value is bool;
+        progressBar.Visible = !loaded;
+        cursorText.Visible = loaded;
     }
 
     private void ProgressHandler(KeyValuePair<string, object> state)
@@ -101,14 +119,14 @@ public partial class HFViewer : Form
 
         if (hasFile && state.Key == Lines.LinesMaxLineKey && state.Value is long lineMax)
         {
-            SetStatus($"(Lines loaded):{lineMax:N0}");
+            AddStatus($"(Lines loaded):{lineMax:N0}");
         }
     }
 
-    private void SetStatus(string text)
+    private void AddStatus(string text)
     {
-        statusText.Text = text;
         timerStatus.Stop();
+        statusText.Text = text;
         timerStatus.Start();
     }
 
@@ -117,7 +135,7 @@ public partial class HFViewer : Form
         progressBar.Visible = false;
         if (state.Value != null)
         {
-            SetStatus(state.Value.ToString() ?? "Error");
+            AddStatus(state.Value.ToString() ?? "Error");
         }
     }
 
@@ -127,8 +145,11 @@ public partial class HFViewer : Form
         openFileDialog.Filter = @"All files|*.*";
         if (openFileDialog.ShowDialog() == DialogResult.OK)
         {
+            cursorText.Visible = false;
             findToolStripMenuItem.Enabled = false;
             hasFile = true;
+
+            Clear();
             textControl.Open(openFileDialog.FileName);
         }
     }
@@ -255,6 +276,8 @@ public partial class HFViewer : Form
         titleSet = false;
         Text = baseTitle;
         statusText.Text = string.Empty;
+        cursorCol = -1;
+        cursorRow = -1;
 
         Task.Run(() =>
         {
@@ -271,7 +294,7 @@ public partial class HFViewer : Form
 
     private void timerStatus_Tick(object sender, EventArgs e)
     {
-        statusText.Text = string.Empty;
         timerStatus.Stop();
+        statusText.Text = string.Empty;
     }
 }

@@ -4,6 +4,8 @@ using System.Collections.Generic;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.Drawing;
+using System.Linq;
+using System.Runtime.InteropServices;
 using System.Runtime.Versioning;
 using System.Text;
 using System.Windows.Forms;
@@ -27,7 +29,7 @@ public partial class TextControl : UserControl
     [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
     public int Cols { get { return (lines?.Cols).GetValueOrDefault(); } }
 
-    public const string CursorKey = "Cursor";
+    public const string CursorKey = "TextControl.Cursor";
     public static readonly Dictionary<string, Type> CursorKeyTypes = new Dictionary<string, Type>()
     {
         { CursorKey, typeof(long[]) },
@@ -68,9 +70,12 @@ public partial class TextControl : UserControl
     private bool searchFound = false;
     private int searchCol = -1;
     private long searchRow = -1;
+    private readonly ConcurrentDictionary<string, object> state = new();
 
     public TextControl()
     {
+        SuspendLayout();
+
         InitializeComponent();
 
         CalculateFontWidth();
@@ -86,9 +91,8 @@ public partial class TextControl : UserControl
         RegisterStateHandler(SearchCursor, Search.SearchCursorKey);
         RegisterStateHandler(LinesLoaded, Lines.LinesLoadedKey);
 
-        HandleCursorChange(0, 0);
-
         Clear();
+        ResumeLayout(true);
     }
 
     private void SearchCursor(KeyValuePair<string, object> state)
@@ -156,10 +160,12 @@ public partial class TextControl : UserControl
         {
             Invalidate();
         }
+
+        HandleCursorChange(0, 0);
     }
 
     public delegate void StateHandler(KeyValuePair<string, object> state);
-    private ConcurrentDictionary<string, List<StateHandler>> stateHandlers = new();
+    private Dictionary<string, List<StateHandler>> stateHandlers = new();
     public void RegisterStateHandler(StateHandler stateHandler, string key)
     {
         if (!stateHandlers.ContainsKey(key))
@@ -169,29 +175,30 @@ public partial class TextControl : UserControl
         stateHandlers[key].Add(stateHandler);
     }
 
-    private void StateChanged(IDictionary<string, object> state)
+    private void stateHandler_Tick(object sender, EventArgs e)
     {
-        if (state == null || state.Count == 0)
+        string[] keys = state.Keys.ToArray();
+        for (int i = 0; i < keys.Length; i++)
         {
-            // nothing new
-            return;
-        }
-
-        foreach (KeyValuePair<string, object> kvp in state)
-        {
-            if (stateHandlers.ContainsKey(kvp.Key))
+            string key = keys[i];
+            if (state.TryRemove(key, out object value))
             {
-                foreach (StateHandler sh in stateHandlers[kvp.Key])
+                if (stateHandlers.ContainsKey(key))
                 {
-                    try
+                    List<StateHandler> handlers = stateHandlers[key];
+
+                    foreach (StateHandler sh in handlers)
                     {
-                        sh(kvp);
-                    }
-                    catch (Exception ex)
-                    {
-                        if (Debugger.IsAttached)
+                        try
                         {
-                            Debugger.Break();
+                            sh(new KeyValuePair<string, object>(key, value));
+                        }
+                        catch (Exception ex)
+                        {
+                            if (Debugger.IsAttached)
+                            {
+                                Debugger.Break();
+                            }
                         }
                     }
                 }
@@ -202,13 +209,9 @@ public partial class TextControl : UserControl
     public void Open(string file)
     {
         Clear();
-        lines = new Lines(StateChanged);
+        lines = new Lines(state);
         lines.Load(file);
         Focus();
-
-        Dictionary<string, object> state = new Dictionary<string, object>();
-        state[CursorKey] = (long[])[CursorRow, CursorCol];
-        StateChanged(state);
     }
 
     public void Clear()
@@ -544,7 +547,7 @@ public partial class TextControl : UserControl
                     WordLeftRight(1);
                     return true;
                 }
-                
+
                 CursorLeftRight(1);
                 return true;
             }
@@ -556,7 +559,7 @@ public partial class TextControl : UserControl
                     ScrollRowUpDown(1);
                     return true;
                 }
-                
+
                 CursorUpDown(-1);
                 return true;
             }
@@ -581,7 +584,7 @@ public partial class TextControl : UserControl
                     CursorUpDown(rowsToMove);
                     return true;
                 }
-                
+
                 CursorUpDown(-ScreenRows);
                 return true;
             }
@@ -594,7 +597,7 @@ public partial class TextControl : UserControl
                     CursorUpDown(rowsToMove);
                     return true;
                 }
-                
+
                 CursorUpDown(ScreenRows);
                 return true;
             }
@@ -606,7 +609,7 @@ public partial class TextControl : UserControl
                     GoToHome();
                     return true;
                 }
-                
+
                 LineBegin();
                 return true;
             }
@@ -620,7 +623,7 @@ public partial class TextControl : UserControl
                 }
 
                 return LineEnd();
-          }
+            }
 
             case Keys.F3:
             {
@@ -850,7 +853,7 @@ public partial class TextControl : UserControl
 
         CursorRow = row;
         LineBegin(handleCursorChange);
-        ScreenStartRow = row - ScreenRows/2 + 1;
+        ScreenStartRow = row - ScreenRows / 2 + 1;
         if (ScreenStartRow < 0)
         {
             ScreenStartRow = 0;
@@ -943,7 +946,7 @@ public partial class TextControl : UserControl
         {
             ScreenStartRow = 0;
         }
-        else if (ScreenStartRow > Rows - ScreenRows/2 && Rows > ScreenRows)
+        else if (ScreenStartRow > Rows - ScreenRows / 2 && Rows > ScreenRows)
         {
             ScreenStartRow = Rows - ScreenRows;
         }
@@ -1114,9 +1117,7 @@ public partial class TextControl : UserControl
             }
         }
 
-        Dictionary<string, object> state = new Dictionary<string, object>();
-        state[CursorKey] = (long[])[CursorRow, CursorCol];
-        StateChanged(state);
+        state[CursorKey] = new long[] { CursorRow, CursorCol };
     }
 
     private void MouseDownEvent(object sender, MouseEventArgs e)
@@ -1427,5 +1428,4 @@ public partial class TextControl : UserControl
         // Wait for finalizers to complete
         GC.WaitForPendingFinalizers();
     }
-
 }
