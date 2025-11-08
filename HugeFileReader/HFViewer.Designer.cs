@@ -48,6 +48,8 @@ partial class HFViewer
         gotoToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
         optionsToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
         preferencesToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+        fontToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+        screenPos = new System.Windows.Forms.ToolStripTextBox();
         statusStrip = new System.Windows.Forms.StatusStrip();
         progressBar = new System.Windows.Forms.ToolStripProgressBar();
         statusText = new System.Windows.Forms.ToolStripStatusLabel();
@@ -61,7 +63,7 @@ partial class HFViewer
         // 
         // menuStrip
         // 
-        menuStrip.Items.AddRange(new System.Windows.Forms.ToolStripItem[] { fileToolStripMenuItem, editToolStripMenuItem, findToolStripMenuItem, optionsToolStripMenuItem });
+        menuStrip.Items.AddRange(new System.Windows.Forms.ToolStripItem[] { fileToolStripMenuItem, editToolStripMenuItem, findToolStripMenuItem, optionsToolStripMenuItem, screenPos });
         menuStrip.Location = new System.Drawing.Point(0, 0);
         menuStrip.Name = "menuStrip";
         menuStrip.Padding = new System.Windows.Forms.Padding(7, 2, 0, 2);
@@ -79,27 +81,27 @@ partial class HFViewer
         // openToolStripMenuItem
         // 
         openToolStripMenuItem.Name = "openToolStripMenuItem";
-        openToolStripMenuItem.Size = new System.Drawing.Size(180, 22);
+        openToolStripMenuItem.Size = new System.Drawing.Size(134, 22);
         openToolStripMenuItem.Text = "Open...";
         openToolStripMenuItem.Click += openToolStripMenuItem_Click;
         // 
         // toolStripMenuItemClose
         // 
         toolStripMenuItemClose.Name = "toolStripMenuItemClose";
-        toolStripMenuItemClose.Size = new System.Drawing.Size(180, 22);
+        toolStripMenuItemClose.Size = new System.Drawing.Size(134, 22);
         toolStripMenuItemClose.Text = "Close";
         toolStripMenuItemClose.Click += toolStripMenuItemClose_Click;
         // 
         // toolStripSeparator1
         // 
         toolStripSeparator1.Name = "toolStripSeparator1";
-        toolStripSeparator1.Size = new System.Drawing.Size(177, 6);
+        toolStripSeparator1.Size = new System.Drawing.Size(131, 6);
         // 
         // exitToolStripMenuItem
         // 
         exitToolStripMenuItem.Name = "exitToolStripMenuItem";
         exitToolStripMenuItem.ShortcutKeys = System.Windows.Forms.Keys.Alt | System.Windows.Forms.Keys.F4;
-        exitToolStripMenuItem.Size = new System.Drawing.Size(180, 22);
+        exitToolStripMenuItem.Size = new System.Drawing.Size(134, 22);
         exitToolStripMenuItem.Text = "Exit";
         exitToolStripMenuItem.Click += exitToolStripMenuItem_Click;
         // 
@@ -115,7 +117,7 @@ partial class HFViewer
         // 
         copyToolStripMenuItem.Name = "copyToolStripMenuItem";
         copyToolStripMenuItem.ShortcutKeys = System.Windows.Forms.Keys.Control | System.Windows.Forms.Keys.C;
-        copyToolStripMenuItem.Size = new System.Drawing.Size(180, 22);
+        copyToolStripMenuItem.Size = new System.Drawing.Size(144, 22);
         copyToolStripMenuItem.Text = "Copy";
         copyToolStripMenuItem.Click += copyToolStripMenuItem_Click;
         // 
@@ -167,7 +169,7 @@ partial class HFViewer
         // 
         // optionsToolStripMenuItem
         // 
-        optionsToolStripMenuItem.DropDownItems.AddRange(new System.Windows.Forms.ToolStripItem[] { preferencesToolStripMenuItem });
+        optionsToolStripMenuItem.DropDownItems.AddRange(new System.Windows.Forms.ToolStripItem[] { preferencesToolStripMenuItem, fontToolStripMenuItem });
         optionsToolStripMenuItem.Name = "optionsToolStripMenuItem";
         optionsToolStripMenuItem.Size = new System.Drawing.Size(61, 20);
         optionsToolStripMenuItem.Text = "Options";
@@ -178,6 +180,21 @@ partial class HFViewer
         preferencesToolStripMenuItem.Size = new System.Drawing.Size(180, 22);
         preferencesToolStripMenuItem.Text = "Preferences...";
         preferencesToolStripMenuItem.Click += preferencesToolStripMenuItem_Click;
+        // 
+        // fontToolStripMenuItem
+        // 
+        fontToolStripMenuItem.Name = "fontToolStripMenuItem";
+        fontToolStripMenuItem.Size = new System.Drawing.Size(180, 22);
+        fontToolStripMenuItem.Text = "Font...";
+        // 
+        // screenPos
+        // 
+        screenPos.Alignment = System.Windows.Forms.ToolStripItemAlignment.Right;
+        screenPos.BorderStyle = System.Windows.Forms.BorderStyle.None;
+        screenPos.Name = "screenPos";
+        screenPos.ReadOnly = true;
+        screenPos.Size = new System.Drawing.Size(150, 20);
+        screenPos.TextBoxTextAlign = System.Windows.Forms.HorizontalAlignment.Center;
         // 
         // statusStrip
         // 
@@ -212,21 +229,22 @@ partial class HFViewer
         // 
         // textControl
         // 
+        textControl.Anchor = System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Left | System.Windows.Forms.AnchorStyles.Right;
         textControl.AutoScroll = true;
         textControl.BackColor = System.Drawing.SystemColors.Control;
-        textControl.Dock = System.Windows.Forms.DockStyle.Fill;
+        textControl.BorderStyle = System.Windows.Forms.BorderStyle.FixedSingle;
         textControl.Font = new System.Drawing.Font("Consolas", 10F);
         textControl.ForeColor = System.Drawing.SystemColors.ControlText;
-        textControl.Location = new System.Drawing.Point(0, 24);
+        textControl.Location = new System.Drawing.Point(5, 32);
         textControl.Name = "textControl";
         textControl.Padding = new System.Windows.Forms.Padding(5);
-        textControl.Size = new System.Drawing.Size(666, 367);
+        textControl.Size = new System.Drawing.Size(656, 353);
         textControl.TabIndex = 4;
         textControl.TabSize = 4;
         // 
         // timerStatus
         // 
-        timerStatus.Interval = 5000;
+        timerStatus.Interval = 30000;
         timerStatus.Tick += timerStatus_Tick;
         // 
         // HFViewer
@@ -283,5 +301,7 @@ partial class HFViewer
     private System.Windows.Forms.ToolStripMenuItem toolStripMenuItemClose;
     private TextControl textControl;
     private System.Windows.Forms.Timer timerStatus;
+    private System.Windows.Forms.ToolStripMenuItem fontToolStripMenuItem;
+    private System.Windows.Forms.ToolStripTextBox screenPos;
 }
 

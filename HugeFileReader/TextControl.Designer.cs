@@ -48,10 +48,13 @@ partial class TextControl
         timerSetStatus = new System.Windows.Forms.Timer(components);
         timerCursor = new System.Windows.Forms.Timer(components);
         timerStateHandler = new System.Windows.Forms.Timer(components);
+        vScrollBar = new System.Windows.Forms.VScrollBar();
+        hScrollBar = new System.Windows.Forms.HScrollBar();
         SuspendLayout();
         // 
         // timerSetStatus
         // 
+        timerSetStatus.Interval = 50;
         timerSetStatus.Tick += timerSetStatus_Tick;
         // 
         // timerCursor
@@ -65,11 +68,39 @@ partial class TextControl
         timerStateHandler.Enabled = true;
         timerStateHandler.Tick += stateHandler_Tick;
         // 
+        // vScrollBar
+        // 
+        vScrollBar.Anchor = System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Right;
+        vScrollBar.Location = new System.Drawing.Point(850, -5);
+        vScrollBar.Name = "vScrollBar";
+        vScrollBar.Size = new System.Drawing.Size(13, 448);
+        vScrollBar.TabIndex = 1;
+        vScrollBar.Scroll += ScrollEvent;
+        vScrollBar.Enter += vScrollBar_Enter;
+        vScrollBar.KeyDown += vScrollBar_KeyDown;
+        vScrollBar.KeyPress += vScrollBar_KeyPress;
+        vScrollBar.KeyUp += vScrollBar_KeyUp;
+        vScrollBar.PreviewKeyDown += vScrollBar_PreviewKeyDown;
+        // 
+        // hScrollBar
+        // 
+        hScrollBar.Anchor = System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Left | System.Windows.Forms.AnchorStyles.Right;
+        hScrollBar.Location = new System.Drawing.Point(-5, 444);
+        hScrollBar.Name = "hScrollBar";
+        hScrollBar.Size = new System.Drawing.Size(854, 13);
+        hScrollBar.TabIndex = 2;
+        hScrollBar.Scroll += ScrollEvent;
+        hScrollBar.KeyDown += hScrollBar_KeyDown;
+        hScrollBar.KeyPress += hScrollBar_KeyPress;
+        hScrollBar.KeyUp += hScrollBar_KeyUp;
+        hScrollBar.PreviewKeyDown += hScrollBar_PreviewKeyDown;
+        // 
         // TextControl
         // 
-        AutoScroll = true;
+        Controls.Add(hScrollBar);
+        Controls.Add(vScrollBar);
         Name = "TextControl";
-        Padding = new System.Windows.Forms.Padding(5);
+        Size = new System.Drawing.Size(858, 452);
         Scroll += ScrollEvent;
         SizeChanged += SizeChangedEvent;
         Paint += PaintEvent;
@@ -93,4 +124,6 @@ partial class TextControl
     private System.Windows.Forms.Timer timerSetStatus;
     private System.Windows.Forms.Timer timerCursor;
     private System.Windows.Forms.Timer timerStateHandler;
+    private System.Windows.Forms.VScrollBar vScrollBar;
+    private System.Windows.Forms.HScrollBar hScrollBar;
 }

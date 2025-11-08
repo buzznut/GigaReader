@@ -5,12 +5,12 @@ using System.ComponentModel;
 using System.Diagnostics;
 using System.Drawing;
 using System.Linq;
-using System.Runtime.InteropServices;
 using System.Runtime.Versioning;
 using System.Text;
 using System.Windows.Forms;
 using UtilitiesLibrary;
 using Clipboard = System.Windows.Forms.Clipboard;
+using Rectangle = System.Drawing.Rectangle;
 
 namespace HugeFileReader;
 
@@ -30,9 +30,11 @@ public partial class TextControl : UserControl
     public int Cols { get { return (lines?.Cols).GetValueOrDefault(); } }
 
     public const string CursorKey = "TextControl.Cursor";
+    public const string ScreenKey = "TextControl.Screen";
     public static readonly Dictionary<string, Type> CursorKeyTypes = new Dictionary<string, Type>()
     {
         { CursorKey, typeof(long[]) },
+        { ScreenKey, typeof(long[]) },
     };
 
     public long CursorRow;
@@ -43,6 +45,8 @@ public partial class TextControl : UserControl
     public int ScreenStartCol;
     public float FontWidthPixels;
     public float FontHeightPixels;
+    public int DisplayWidth;
+    public int DisplayHeight;
     public long SelectionAnchorRow = -1;
     public int SelectionAnchorCol = -1;
     public long SelectionReleaseRow = -1;
@@ -66,11 +70,13 @@ public partial class TextControl : UserControl
     private bool shiftKeyDown;
     private Rectangle oldRect = new Rectangle(0, 0, 0, 0);
     private bool cursorIsOn = true;
-    private Pen cursorPen = new Pen(Color.DarkOrange, 2);
+    private Pen cursorPen = new Pen(Color.Black, 1);
     private bool searchFound = false;
     private int searchCol = -1;
     private long searchRow = -1;
     private readonly ConcurrentDictionary<string, object> state = new();
+    private RectangleF tcRect;
+    private bool initd = false;
 
     public TextControl()
     {
@@ -78,8 +84,9 @@ public partial class TextControl : UserControl
 
         InitializeComponent();
 
-        CalculateFontWidth();
-        CalculateScreenDimensions();
+        vScrollBar.Visible = false;
+        hScrollBar.Visible = false;
+        Padding = new Padding(0, 0, 0, 0);
 
         brushNormalBackground = new SolidBrush(BackColor);
         brushNormalText = new SolidBrush(ForeColor);
@@ -91,8 +98,15 @@ public partial class TextControl : UserControl
         RegisterStateHandler(SearchCursor, Search.SearchCursorKey);
         RegisterStateHandler(LinesLoaded, Lines.LinesLoadedKey);
 
+        DisplayHeight = Height;
+        DisplayWidth = Width;
+
         Clear();
+
         ResumeLayout(true);
+
+        initd = true;
+        CalculateScreenDimensions();
     }
 
     private void SearchCursor(KeyValuePair<string, object> state)
@@ -138,41 +152,98 @@ public partial class TextControl : UserControl
         GoToLine(searchRow, false);
         CursorCol = searchCol;
 
-        if (oldScreenCol != ScreenStartCol || oldScreenRow != ScreenStartRow)
-        {
-            Invalidate();
-        }
-
-        HandleCursorChange(srow, scol);
+        HandleCursorChange(srow, scol, oldScreenRow, oldScreenCol);
     }
 
     private void LineProgressChanged(KeyValuePair<string, object> _)
     {
         if (lines != null && lines.Rows > ScreenRows)
         {
-            Invalidate();
+            InvalidateText();
         }
     }
 
-    private void LinesLoaded(KeyValuePair<string, object> _)
+    private void LinesLoaded(KeyValuePair<string, object> kvp)
     {
-        if (lines != null && lines.Rows > ScreenRows)
+        bool loaded = kvp.Value is bool f && f;
+        if (loaded)
         {
-            Invalidate();
+            CalculateScreenDimensions();
+            state[CursorKey] = new long[] { CursorRow, CursorCol };
+            state[ScreenKey] = new long[] { ScreenStartRow, ScreenStartCol };
+        }
+    }
+
+    private bool ScrollBarEnable()
+    {
+        if (lines == null) return false;
+
+        bool oldVSVisible = vScrollBar.Visible;
+        bool oldHSVisible = hScrollBar.Visible;
+
+        if (lines.Rows > ScreenRows)
+        {
+            if (!oldVSVisible)
+            {
+                vScrollBar.Visible = true;
+                CalculateScollMaximum(vScrollBar, lines.Rows, ScreenRows);
+            }
+        }
+        else
+        {
+            if (oldVSVisible)
+            {
+                vScrollBar.Visible = false;
+            }
         }
 
-        HandleCursorChange(0, 0);
+        if (lines.Cols > ScreenCols)
+        {
+            if (!oldVSVisible)
+            {
+                hScrollBar.Visible = true;
+                CalculateScollMaximum(hScrollBar, lines.Cols, ScreenCols);
+            }
+        }
+        else
+        {
+            if (oldVSVisible)
+            {
+                hScrollBar.Visible = false;
+            }
+        }
+
+        return oldVSVisible != vScrollBar.Visible || oldHSVisible && hScrollBar.Visible;
+    }
+
+    private static void CalculateScollMaximum(ScrollBar sb, long value, int pageSize)
+    {
+        int i = 1;
+        long m = value;
+        while (m >= int.MaxValue)
+        {
+            m = m / 10;
+            i *= 10;
+        }
+
+        int max = (int)m;
+
+        sb.Maximum = max;
+        sb.SmallChange = i;
+        sb.LargeChange = Math.Max(pageSize, max / 1000);
     }
 
     public delegate void StateHandler(KeyValuePair<string, object> state);
     private Dictionary<string, List<StateHandler>> stateHandlers = new();
     public void RegisterStateHandler(StateHandler stateHandler, string key)
     {
-        if (!stateHandlers.ContainsKey(key))
+        if (!stateHandlers.TryGetValue(key, out List<StateHandler> value))
         {
-            stateHandlers[key] = new List<StateHandler>();
+            value = new List<StateHandler>();
+            stateHandlers[key] = value;
         }
-        stateHandlers[key].Add(stateHandler);
+
+        value.Add(stateHandler);
     }
 
     private void stateHandler_Tick(object sender, EventArgs e)
@@ -183,10 +254,8 @@ public partial class TextControl : UserControl
             string key = keys[i];
             if (state.TryRemove(key, out object value))
             {
-                if (stateHandlers.ContainsKey(key))
+                if (stateHandlers.TryGetValue(key, out List<StateHandler> handlers))
                 {
-                    List<StateHandler> handlers = stateHandlers[key];
-
                     foreach (StateHandler sh in handlers)
                     {
                         try
@@ -216,6 +285,8 @@ public partial class TextControl : UserControl
 
     public void Clear()
     {
+        if (lines == null) return;
+
         SuspendLayout();
 
         SetStyle(ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer, true);
@@ -241,18 +312,25 @@ public partial class TextControl : UserControl
         SearchDown = true;
         UseCase = false;
         TextToFind = null;
-        Invalidate();
+        vScrollBar.Visible = false;
+        hScrollBar.Visible = false;
 
         ResumeLayout(true);
+
+        Invalidate(true);
     }
 
     protected override void OnPaintBackground(PaintEventArgs e)
     {
         base.OnPaintBackground(e);
+
+        Graphics g = e.Graphics;
+        g.FillRectangle(brushNormalBackground, e.ClipRectangle);
     }
 
     private void SizeChangedEvent(object sender, EventArgs e)
     {
+
         CalculateScreenDimensions();
     }
 
@@ -260,8 +338,11 @@ public partial class TextControl : UserControl
     {
     }
 
-    private void CalculateFontWidth()
+    private bool CalculateFontWidth()
     {
+        float oldFontHeight = FontHeightPixels;
+        float oldFontWidth = FontWidthPixels;
+
         using (Graphics g = CreateGraphics())
         {
             string ms = "Now is the time for all good men to come to the aid of their country.";
@@ -270,17 +351,16 @@ public partial class TextControl : UserControl
             SizeF xx = g.MeasureString(ms, Font);
 
             FontHeightPixels = xx.Height;
-            FontWidthPixels = 0.5F + (xx.Width / ms.Length);
-
-            g.Dispose();
+            FontWidthPixels = xx.Width / ms.Length;
         }
+
+        return oldFontHeight != FontHeightPixels || oldFontWidth != FontWidthPixels;
     }
 
     private void FontChangedEvent(object sender, EventArgs e)
     {
         try
         {
-            CalculateFontWidth();
             CalculateScreenDimensions();
         }
         catch (Exception ex)
@@ -292,35 +372,44 @@ public partial class TextControl : UserControl
 
     private void CalculateScreenDimensions()
     {
-        if (FontWidthPixels <= 0 && FontHeightPixels <= 0) return;
+        if (!initd) return;
+        bool changed = CalculateFontWidth();
 
-        ScreenCols = Convert.ToInt32(Math.Truncate((Width - Padding.Left - Padding.Right + FontWidthPixels - 1) / FontWidthPixels));
-        ScreenRows = Convert.ToInt32(Math.Truncate((Height - Padding.Top - Padding.Bottom + FontHeightPixels - 1) / FontHeightPixels));
+        changed |= ScrollBarEnable();
+
+        int oldDisplayWidth = DisplayWidth;
+        int oldDisplayHeight = DisplayHeight;
+
+        int vsbWidth = vScrollBar.Visible ? vScrollBar.Width : 0;
+        int hsbHeight = hScrollBar.Visible ? hScrollBar.Height : 0;
+
+        DisplayWidth = Width - vsbWidth;
+        DisplayHeight = Height - hsbHeight;
+
+        changed |= oldDisplayWidth != DisplayWidth || oldDisplayHeight != DisplayHeight;
+
+        int oldScreenRows = ScreenRows;
+        int oldScreenCols = ScreenCols;
+
+        ScreenCols = Convert.ToInt32(Math.Truncate(DisplayWidth / FontWidthPixels));
+        ScreenRows = Convert.ToInt32(Math.Truncate(DisplayHeight / FontHeightPixels));
 
         if (ScreenCols < 0) ScreenCols = 0;
         if (ScreenRows < 0) ScreenRows = 0;
 
-        Invalidate();
+        changed |= oldScreenRows != ScreenRows || oldScreenCols != ScreenCols;
+
+        if (changed)
+        {
+            tcRect = new RectangleF(0, 0, DisplayWidth, DisplayHeight);
+            InvalidateText();
+        }
     }
 
     private void PaintEvent(object sender, PaintEventArgs e)
     {
         try
         {
-            StringBuilder sb = new StringBuilder();
-
-            Graphics g = e.Graphics;
-
-            RectangleF rc = new RectangleF(e.ClipRectangle.Left,
-                e.ClipRectangle.Top,
-                e.ClipRectangle.Width,
-                e.ClipRectangle.Height);
-
-            int row = (int)MathF.Round(MathF.Max((rc.Top - Padding.Top) / FontHeightPixels, 0));
-            int rows = (int)MathF.Truncate(MathF.Max((rc.Height - Padding.Top - Padding.Bottom + FontHeightPixels - 1) / FontHeightPixels, 1));
-            int col = (int)MathF.Round(MathF.Max((rc.Left - Padding.Left) / FontWidthPixels, 0));
-            int cols = (int)MathF.Truncate(MathF.Max((rc.Width - Padding.Right - Padding.Left) / FontWidthPixels, 1));
-
             if (lines == null || lines.Rows < ScreenStartRow + ScreenRows)
             {
                 //if (rows > 0)
@@ -334,11 +423,32 @@ public partial class TextControl : UserControl
                 return;
             }
 
-            if (col > 0)
+            StringBuilder sb = new StringBuilder();
+
+            Graphics g = e.Graphics;
+
+            RectangleF rc = RectangleF.Intersect(e.ClipRectangle, tcRect);
+            if (rc.IsEmpty) return;
+
+            long row = (long)MathF.Truncate(rc.Top / FontHeightPixels) - 1;
+            int rows = (int)MathF.Truncate(rc.Height / FontHeightPixels) + 2;
+            int col = (int)MathF.Truncate(rc.Left / FontWidthPixels) - 1;
+            int cols = (int)MathF.Truncate(rc.Width / FontWidthPixels) + 2;
+
+            if (row < 0)
             {
-                col--;
-                cols++;
+                row = 0;
+                rows--;
             }
+
+            if (col < 0)
+            {
+                col = 0;
+                cols--;
+            }
+
+            if (row >= (lines.Rows - ScreenStartRow)) row = lines.Rows - ScreenStartRow;
+            if (col >= (lines.Cols - ScreenStartCol)) col = lines.Cols - ScreenStartCol;
 
             long sr;
             int sc;
@@ -360,16 +470,12 @@ public partial class TextControl : UserControl
                 ec = SelectionReleaseCol;
             }
 
-            bool showCursor = cursorIsOn &&
-                CursorRow >= ScreenStartRow && CursorRow < ScreenStartRow + ScreenRows &&
-                CursorCol >= ScreenStartCol && CursorCol < ScreenStartCol + ScreenCols;
-
             string line;
             for (int ii = 0; ii <= rows + 1; ii++)
             {
-                int r = ii + row;
+                long r = ii + row;
 
-                float y = Padding.Top + (r * FontHeightPixels);
+                float y = r * FontHeightPixels;
                 bool useSpaceRow = false;
 
                 long textRow = r + ScreenStartRow;
@@ -379,7 +485,7 @@ public partial class TextControl : UserControl
                 line = lines[textRow];
                 if (line == null)
                 {
-                    Invalidate();
+                    InvalidateText();
                     return;
                 }
 
@@ -394,13 +500,13 @@ public partial class TextControl : UserControl
                 for (int jj = 0; jj <= cols + 1; jj++)
                 {
                     int c = col + jj;
-                    float x = Padding.Left + (c * FontWidthPixels);
+                    float x = c * FontWidthPixels;
 
                     Brush brBackground = brushNormalBackground;
                     Brush brText = brushNormalText;
 
                     int textCol = c + ScreenStartCol;
-                    if (textCol >= lines.Cols) continue;
+                    if (textCol > lines.Cols) continue;
 
                     char ch = ' ';
                     if (textCol < line.Length && textCol >= 0)
@@ -418,12 +524,10 @@ public partial class TextControl : UserControl
                             }
                         }
 
-                        ch = line[textCol];
+                        ch = GetChar(line, textCol);
                     }
 
-                    if (useSpaceRow ||
-                        x > Width - Padding.Right - FontWidthPixels - (VerticalScroll.Visible ? SystemInformation.VerticalScrollBarWidth : 0) ||
-                        x < Padding.Left)
+                    if (useSpaceRow || x > DisplayWidth - FontWidthPixels - (VerticalScroll.Visible ? SystemInformation.VerticalScrollBarWidth : 0) || x < 0)
                     {
                         ch = ' ';
                     }
@@ -465,15 +569,22 @@ public partial class TextControl : UserControl
                 }
             }
 
+            bool showCursor = cursorIsOn &&
+                CursorRow >= ScreenStartRow && CursorRow < ScreenStartRow + ScreenRows &&
+                CursorCol >= ScreenStartCol && CursorCol < ScreenStartCol + ScreenCols;
+
             if (showCursor)
             {
-                float x = Padding.Left + ((CursorCol - ScreenStartCol) * FontWidthPixels) + 2;
-                float y = Padding.Top + ((CursorRow - ScreenStartRow) * FontHeightPixels);
+                float x = (CursorCol - ScreenStartCol) * FontWidthPixels + 2;
+                float y = (CursorRow - ScreenStartRow) * FontHeightPixels + 2;
                 PointF topPoint = new PointF(x, y);
-                PointF bottomPoint = new PointF(x, y + FontHeightPixels - 4);
+                PointF bottomPoint = new PointF(x, y + FontHeightPixels * 0.7F);
 
                 g.DrawLine(cursorPen, topPoint, bottomPoint);
             }
+
+            //RectangleF foo = new RectangleF(rc.Left, rc.Top, rc.Width - 1, rc.Height - 1);
+            //g.DrawRectangle(Pens.Red, foo);
         }
         catch (Exception ex)
         {
@@ -532,11 +643,11 @@ public partial class TextControl : UserControl
             {
                 if (controlKeyDown)
                 {
-                    WordLeftRight(-1);
+                    WordLeftRight(false, true);
                     return true;
                 }
 
-                CursorLeftRight(-1);
+                CursorLeftRight(-1, true);
                 return true;
             }
 
@@ -544,11 +655,11 @@ public partial class TextControl : UserControl
             {
                 if (controlKeyDown)
                 {
-                    WordLeftRight(1);
+                    WordLeftRight(true, true);
                     return true;
                 }
 
-                CursorLeftRight(1);
+                CursorLeftRight(1, true);
                 return true;
             }
 
@@ -560,7 +671,7 @@ public partial class TextControl : UserControl
                     return true;
                 }
 
-                CursorUpDown(-1);
+                CursorUpDown(-1, true);
                 return true;
             }
 
@@ -572,7 +683,7 @@ public partial class TextControl : UserControl
                     return true;
                 }
 
-                CursorUpDown(1);
+                CursorUpDown(1, true);
                 return true;
             }
 
@@ -581,11 +692,11 @@ public partial class TextControl : UserControl
                 if (controlKeyDown)
                 {
                     long rowsToMove = ScreenStartRow - CursorRow;
-                    CursorUpDown(rowsToMove);
+                    CursorUpDown(rowsToMove, true);
                     return true;
                 }
 
-                CursorUpDown(-ScreenRows);
+                CursorUpDown(-ScreenRows, true);
                 return true;
             }
 
@@ -594,11 +705,11 @@ public partial class TextControl : UserControl
                 if (controlKeyDown)
                 {
                     long rowsToMove = ScreenStartRow + ScreenRows - CursorRow - 1;
-                    CursorUpDown(rowsToMove);
+                    CursorUpDown(rowsToMove, true);
                     return true;
                 }
 
-                CursorUpDown(ScreenRows);
+                CursorUpDown(ScreenRows, true);
                 return true;
             }
 
@@ -606,11 +717,11 @@ public partial class TextControl : UserControl
             {
                 if (controlKeyDown)
                 {
-                    GoToHome();
+                    GoToHome(true);
                     return true;
                 }
 
-                LineBegin();
+                LineBegin(true);
                 return true;
             }
 
@@ -618,11 +729,12 @@ public partial class TextControl : UserControl
             {
                 if (controlKeyDown)
                 {
-                    GoToEnd();
+                    GoToEnd(true);
                     return true;
                 }
 
-                return LineEnd();
+                LineEnd(true);
+                return true;
             }
 
             case Keys.F3:
@@ -656,108 +768,119 @@ public partial class TextControl : UserControl
         return false;
     }
 
-    private void WordLeftRight(int addrValue)
+    private void WordLeftRight(bool goRight, bool handleCursorChange)
     {
-        if (addrValue == 0) return;
+        long oldRow = CursorRow;
+        int oldCol = CursorCol;
+        int oldStartCol = ScreenStartCol;
+        long oldStartRow = ScreenStartRow;
 
+        GetWord(goRight);
+
+        if (handleCursorChange) HandleCursorChange(oldRow, oldCol, oldStartRow, oldStartCol);
+    }
+
+    /*
+    X-GM-THRID: 1834746907652177196
+    X-Gmail-Labels: Important,Trash,Opened,Category Updates
+    */
+    private void GetWord(bool goRight)
+    {
         string line = GetLine(CursorRow);
-        InvalidateCursorPosition(CursorRow, CursorCol);
-        int currentCol = CursorCol;
+        if (line == null) return;
 
-        if (addrValue > 0)
+        int addValue = goRight ? 1 : -1;
+        //if (goRight)
+        //{
+        //    // moving right
+        //    addValue = 1;
+        //    if (CursorCol >= line.Length)
+        //    {
+        //        CursorLeftRight(addValue, false);
+        //        return;
+        //    }
+        //}
+        //else
+        //{
+        //    // moving left
+        //    addValue = -1;
+        //    CursorCol--;
+        //    if (CursorCol < 0)
+        //    {
+        //        CursorLeftRight(addValue, false);
+        //        return;
+        //    }
+        //}
+
+        char ch = GetChar(line, CursorCol);
+        if (!char.IsLetterOrDigit(ch))
         {
-            // moving right
-            if (currentCol >= line.Length)
+            // move until we find a letter/digit
+            while (CursorCol < lines.Cols && CursorCol >= 0 && !char.IsLetterOrDigit(GetChar(line, CursorCol)))
             {
-                CursorLeftRight(addrValue);
-                return;
-            }
-
-            char ch = line[currentCol];
-            if (!char.IsLetterOrDigit(ch))
-            {
-                // move until we find a letter/digit
-                while (currentCol < line.Length && !char.IsLetterOrDigit(line[currentCol]))
-                {
-                    currentCol += addrValue;
-                }
-            }
-            else
-            {
-                // move until we find a non-space character
-                while (currentCol < line.Length && char.IsLetterOrDigit(line[currentCol]))
-                {
-                    currentCol += addrValue;
-                }
+                CursorCol += addValue;
             }
         }
         else
         {
-            currentCol += addrValue;
-
-            // moving left
-            if (currentCol <= 0)
+            // move until we find a non-space character
+            while (CursorCol < lines.Cols && CursorCol >= 0 && char.IsLetterOrDigit(GetChar(line, CursorCol)))
             {
-                CursorLeftRight(addrValue);
-                return;
+                CursorCol += addValue;
             }
+        }
 
-            char ch = line[currentCol];
-            if (!char.IsLetterOrDigit(ch))
+        CursorCol += goRight ? 0 : 1;
+    }
+
+    private static char GetChar(string line, int cursorCol)
+    {
+        return (cursorCol >= 0 && cursorCol < line.Length) ? line[cursorCol] : ' ';
+    }
+
+    private void CursorLeftRight(int rightLeftQty, bool handleCursorChange)
+    {
+        long oldRow = CursorRow;
+        int oldColumn = CursorCol;
+        long oldStartRow = ScreenStartRow;
+        int oldStartColumn = ScreenStartCol;
+
+        CursorCol += rightLeftQty;
+
+        if (CursorCol < 0)
+        {
+            if (controlKeyDown)
             {
-                // move until we find a letter/digit
-                while (currentCol >= 0 && !char.IsLetterOrDigit(line[currentCol]))
-                {
-                    currentCol += addrValue;
-                }
+                CursorUpDown(-1, false);
+                LineEnd(false);
+                WordLeftRight(false, false);
             }
             else
             {
-                // move until we find a non-space character
-                while (currentCol >= 0 && char.IsLetterOrDigit(line[currentCol]))
-                {
-                    currentCol += addrValue;
-                }
+                CursorCol = 0;
             }
-
-            currentCol -= addrValue;
         }
-
-        if (CursorCol != currentCol)
-        {
-            CursorLeftRight(currentCol - CursorCol);
-        }
-    }
-
-    private void CursorLeftRight(int cols, bool handleCursorChange = true)
-    {
-        long srow = CursorRow;
-        int scol = CursorCol;
-
-        string line = GetLine(CursorRow);
-        if (line == null) return;
-
-        CursorCol += cols;
-
-        if (CursorCol < 0 && ScreenStartRow > 0)
-        {
-            CursorUpDown(-1, false);
-            LineEnd(false);
-        }
-        else if (CursorCol > line.Length)
+        else if (CursorCol >= lines.Cols)
         {
             if ((Rows - ScreenStartRow - ScreenRows) > (CursorRow + 1))
             {
-                CursorUpDown(1, false);
-                LineBegin(false);
+                if (controlKeyDown)
+                {
+                    CursorUpDown(1, false);
+                    LineBegin(false);
+                }
+                else
+                {
+                    CursorCol = lines.Cols - 1;
+                }
             }
             else
             {
-                CursorCol -= cols;
+                CursorCol -= rightLeftQty;
             }
         }
 
-        if (handleCursorChange) HandleCursorChange(srow, scol);
+        if (handleCursorChange) HandleCursorChange(oldRow, oldColumn, oldStartRow, oldStartColumn);
     }
 
     public void Find()
@@ -784,7 +907,7 @@ public partial class TextControl : UserControl
             long row;
             if (long.TryParse(gt.GetLine(), out row))
             {
-                GoToLine(row - 1);
+                GoToLine(row - 1, true);
             }
         }
     }
@@ -793,85 +916,71 @@ public partial class TextControl : UserControl
     {
         KeyEventArgs k = new KeyEventArgs(e.KeyData);
         wasHandled = ProcessKey(k);
+        k.Handled = wasHandled;
     }
 
     private void MouseWheelEvent(object sender, MouseEventArgs e)
     {
         // Update the drawing based upon the mouse wheel scrolling.
-        int numberOfTextLinesToMove = (e.Delta * SystemInformation.MouseWheelScrollLines / 120);
+        int numberOfTextLinesToMove = e.Delta * SystemInformation.MouseWheelScrollLines / 120;
         ScrollRowUpDown(numberOfTextLinesToMove);
     }
 
-    private void GoToHome(bool handleCursorChange = true)
+    private void GoToHome(bool handleCursorChange)
     {
-        long srow = CursorRow;
-        int scol = CursorCol;
-        int oldScreenCol = ScreenStartCol;
-        long oldScreenRow = ScreenStartRow;
+        long oldRow = CursorRow;
+        int oldCol = CursorCol;
+        int oldStartCol = ScreenStartCol;
+        long oldStartRow = ScreenStartRow;
 
         CursorRow = 0;
         CursorCol = 0;
         ScreenStartCol = 0;
         ScreenStartRow = 0;
 
-        if (oldScreenCol != ScreenStartCol || oldScreenRow != ScreenStartRow)
-        {
-            Invalidate();
-        }
-
-        if (handleCursorChange) HandleCursorChange(srow, scol);
+        if (handleCursorChange) HandleCursorChange(oldRow, oldCol, oldStartRow, oldStartCol);
     }
 
-    private void GoToEnd(bool handleCursorChange = true)
+    private void GoToEnd(bool handleCursorChange)
     {
-        long srow = CursorRow;
-        int scol = CursorCol;
-        int oldScreenCol = ScreenStartCol;
-        long oldScreenRow = ScreenStartRow;
+        long oldRow = CursorRow;
+        int oldCol = CursorCol;
+        int oldStartCol = ScreenStartCol;
+        long oldStartRow = ScreenStartRow;
 
         CursorRow = Rows - 1;
-        if (!LineEnd()) return;
-
+        LineEnd(false);
         ScreenStartRow = Rows - ScreenRows;
 
-        if (oldScreenCol != ScreenStartCol || oldScreenRow != ScreenStartRow)
-        {
-            Invalidate();
-        }
-
-        if (handleCursorChange) HandleCursorChange(srow, scol);
+        if (handleCursorChange) HandleCursorChange(oldRow, oldCol, oldStartRow, oldStartCol);
     }
 
-    public void GoToLine(long row, bool handleCursorChange = true)
+    public void GoToLine(long row, bool handleCursorChange)
     {
-        long srow = CursorRow;
-        int scol = CursorCol;
-        int oldScreenCol = ScreenStartCol;
-        long oldScreenRow = ScreenStartRow;
+        long oldRow = CursorRow;
+        int oldCol = CursorCol;
+        long oldStartRow = ScreenStartRow;
+        int oldStartCol = ScreenStartCol;
 
-        if (row > lines.Rows - 1) { row = lines.Rows - 1; }
+        if (row > lines.Rows) { row = lines.Rows; }
 
         CursorRow = row;
-        LineBegin(handleCursorChange);
+        LineBegin(false);
         ScreenStartRow = row - ScreenRows / 2 + 1;
         if (ScreenStartRow < 0)
         {
             ScreenStartRow = 0;
         }
 
-        if (oldScreenCol != ScreenStartCol || oldScreenRow != ScreenStartRow)
-        {
-            Invalidate();
-        }
-
-        if (handleCursorChange) HandleCursorChange(srow, scol);
+        if (handleCursorChange) HandleCursorChange(oldRow, oldCol, oldStartRow, oldStartCol);
     }
 
-    private void LineBegin(bool handleCursorChange = true)
+    private void LineBegin(bool handleCursorChange)
     {
-        long srow = CursorRow;
-        int scol = CursorCol;
-        int oldScreenCol = ScreenStartCol;
+        long oldRow = CursorRow;
+        int oldCol = CursorCol;
+        int oldStartCol = ScreenStartCol;
+        long oldStartRow = ScreenStartRow;
 
         CursorCol = 0;
         if (CursorCol < ScreenStartCol)
@@ -879,26 +988,20 @@ public partial class TextControl : UserControl
             ScreenStartCol = 0;
         }
 
-        if (oldScreenCol != ScreenStartCol)
-        {
-            Invalidate();
-        }
-
-        if (handleCursorChange) HandleCursorChange(srow, scol);
+        if (handleCursorChange) HandleCursorChange(oldRow, oldCol, oldStartRow, oldStartCol);
     }
 
-    private bool LineEnd(bool handleCursorChange = true)
+    private void LineEnd(bool handleCursorChange)
     {
-        long srow = CursorRow;
-        int scol = CursorCol;
+        long oldRow = CursorRow;
+        int oldCol = CursorCol;
+        int oldStartCol = ScreenStartCol;
+        long oldStartRow = ScreenStartRow;
 
         string line = GetLine(CursorRow);
-        if (line == null) return false;
+        CursorCol = line == null ? 0 : line.Length;
 
-        CursorCol = line.Length;
-
-        if (handleCursorChange) HandleCursorChange(srow, scol);
-        return true;
+        if (handleCursorChange) HandleCursorChange(oldRow, oldCol, oldStartRow, oldStartCol);
     }
 
     private string GetLine(long cursorRow)
@@ -909,20 +1012,15 @@ public partial class TextControl : UserControl
         return text.Replace("\t", "".PadRight(TabSize));
     }
 
-    private void CursorUpDown(long rowsToMoveCursor, bool handleCursorChange = true)
+
+    private void CursorUpDown(long rowsToMoveCursor, bool handleCursorChange)
     {
-        long srow = CursorRow;
-        int scol = CursorCol;
+        long oldRow = CursorRow;
+        int oldCol = CursorCol;
         long oldStartRow = ScreenStartRow;
+        int oldStartCol = ScreenStartCol;
 
         CursorRow += rowsToMoveCursor;
-        string line = GetLine(CursorRow);
-        if (line == null) return;
-
-        if (CursorCol > line.Length)
-        {
-            CursorCol = line.Length;
-        }
 
         if (CursorRow < 0)
         {
@@ -933,30 +1031,12 @@ public partial class TextControl : UserControl
             CursorRow = Rows - 1;
         }
 
-        if (CursorRow < ScreenStartRow)
+        if (CursorCol >= lines.Cols)
         {
-            ScreenStartRow = CursorRow;
-        }
-        else if (CursorRow > ScreenStartRow + ScreenRows - 1)
-        {
-            ScreenStartRow += rowsToMoveCursor;
+            CursorCol = lines.Cols - 1;
         }
 
-        if (ScreenStartRow < 0)
-        {
-            ScreenStartRow = 0;
-        }
-        else if (ScreenStartRow > Rows - ScreenRows / 2 && Rows > ScreenRows)
-        {
-            ScreenStartRow = Rows - ScreenRows;
-        }
-
-        if (oldStartRow != ScreenStartRow)
-        {
-            Invalidate();
-        }
-
-        if (handleCursorChange) HandleCursorChange(srow, scol);
+        if (handleCursorChange) HandleCursorChange(oldRow, oldCol, oldStartRow, oldStartCol);
     }
 
     private void KeyUpEvent(object sender, KeyEventArgs e)
@@ -978,12 +1058,9 @@ public partial class TextControl : UserControl
         e.SuppressKeyPress = wasHandled;
     }
 
-    private void ScrollRowUpDown(int linesToMove, bool handleCursorChange = true)
+    private void ScrollRowUpDown(int linesToMove)
     {
         if (lines == null || lines.Rows == 0) return;
-
-        long srow = CursorRow;
-        int scol = CursorCol;
 
         long oldScreenStartRow = ScreenStartRow;
 
@@ -991,53 +1068,47 @@ public partial class TextControl : UserControl
 
         if (ScreenStartRow >= Rows - ScreenRows)
         {
-            ScreenStartRow = Rows - ScreenRows - 1;
+            ScreenStartRow = Rows - ScreenRows;
         }
 
-        if (ScreenStartRow <= 0)
+        if (ScreenStartRow < 0)
         {
             ScreenStartRow = 0;
         }
 
-        if (oldScreenStartRow != ScreenStartRow)
-        {
-            Invalidate();
-        }
-
-        //// if the cursor is no longer on the page, adjust the cursor appropriately
-        //if (CursorRow < ScreenStartRow) CursorRow = ScreenStartRow;
-        //if (CursorRow > ScreenStartRow + ScreenRows - 1) CursorRow = ScreenStartRow + ScreenRows - 1;
-
-        //if (handleCursorChange) HandleCursorChange(srow, scol);
+        HandleScroll(oldScreenStartRow, ScreenStartCol);
     }
 
-    private void ScrollLeftRight(int columnsToMove, bool handleCursorChange = true)
+    private void HandleScroll(long oldScreenStartRow, int oldScreenStartCol)
     {
-        long srow = CursorRow;
-        int scol = CursorCol;
+        if (oldScreenStartRow != ScreenStartRow || oldScreenStartCol != ScreenStartCol)
+        {
+            InvalidateText();
+            state[ScreenKey] = new long[] { ScreenStartRow, ScreenStartCol };
+        }
+    }
+
+    private void ScrollLeftRight(int columnsToMove)
+    {
+        if (lines == null || lines.Rows == 0) return;
+        int oldScreenStartCol = ScreenStartCol;
 
         ScreenStartCol -= columnsToMove;
 
-        if (ScreenStartCol >= Cols)
+        int maxCols = Cols - ScreenCols;
+        if (maxCols < 0) maxCols = 0;
+
+        if (ScreenStartCol > maxCols)
         {
-            ScreenStartCol = Cols - 1;
+            ScreenStartCol = Cols - ScreenCols;
         }
 
-        if (ScreenStartCol <= 0)
+        if (ScreenStartCol < 0)
         {
             ScreenStartCol = 0;
         }
 
-        if (CursorCol >= ScreenStartCol + ScreenCols)
-        {
-            CursorCol = ScreenStartCol + ScreenCols - 1;
-        }
-        else if (CursorCol < ScreenStartCol)
-        {
-            CursorCol = ScreenStartCol;
-        }
-
-        if (handleCursorChange) HandleCursorChange(srow, scol);
+        HandleScroll(ScreenStartRow, oldScreenStartCol);
     }
 
     public void ToClipboard()
@@ -1090,10 +1161,12 @@ public partial class TextControl : UserControl
         }
     }
 
-    private void HandleCursorChange(long oldRow, int oldCol)
+    private void HandleCursorChange(long oldRow, int oldCol, long oldStartRow, int oldStartCol)
     {
         cursorIsOn = false;
         InvalidateCursorPosition(oldRow, oldCol);
+
+        bool invalidatePage = oldStartRow != ScreenStartRow || oldStartCol != ScreenStartCol;
 
         if (shiftKeyDown)
         {
@@ -1106,15 +1179,68 @@ public partial class TextControl : UserControl
             SelectionReleaseRow = CursorRow;
             SelectionReleaseCol = CursorCol;
 
-            InvalidateSelection();
+            invalidatePage = true;
         }
         else
         {
             if (SelectionAnchorRow != -1)
             {
                 SelectionAnchorRow = -1;
-                Invalidate();
+                invalidatePage = true;
             }
+        }
+
+        if (CursorRow < ScreenStartRow)
+        {
+            ScreenStartRow = CursorRow;
+        }
+        else if (CursorRow >= ScreenStartRow + ScreenRows - 1)
+        {
+            ScreenStartRow = CursorRow - ScreenRows + 1;
+        }
+
+        if (ScreenStartRow < 0)
+        {
+            ScreenStartRow = 0;
+        }
+
+        if (CursorCol < ScreenStartCol)
+        {
+            ScreenStartCol = CursorCol;
+        }
+        else if (CursorCol >= ScreenStartCol + ScreenCols)
+        {
+            ScreenStartCol = CursorCol - ScreenCols + 1;
+        }
+
+        if (ScreenStartCol < 0)
+        {
+            ScreenStartCol = 0;
+        }
+
+        if (oldStartRow != ScreenStartRow || oldStartCol != ScreenStartCol)
+        {
+            invalidatePage = true;
+            state[ScreenKey] = new long[] { ScreenStartRow, ScreenStartCol };
+        }
+
+        if (invalidatePage)
+        {
+            InvalidateText();
+        }
+        else
+        {
+            InvalidateCursorPosition(CursorRow, CursorCol);
+        }
+
+        if (vScrollBar.Visible)
+        {
+            vScrollBar.Value = Math.Clamp((int)(vScrollBar.Maximum * ScreenStartRow / (double)lines.Rows), 0, vScrollBar.Maximum);
+        }
+
+        if (hScrollBar.Visible)
+        {
+            hScrollBar.Value = Math.Clamp((int)(hScrollBar.Maximum * ScreenStartCol / (double)lines.Cols), 0, hScrollBar.Maximum);
         }
 
         state[CursorKey] = new long[] { CursorRow, CursorCol };
@@ -1122,14 +1248,13 @@ public partial class TextControl : UserControl
 
     private void MouseDownEvent(object sender, MouseEventArgs e)
     {
-        //InvalidateSelection();
+        InvalidateSelection();
 
-        //// set the cursor to where the mouse is.
-        //SelectionReleaseCol = (int)((e.X - Padding.Left) / FontWidthPixels) + ScreenStartCol;
-        //SelectionAnchorRow = (int)((e.Y - Padding.Top) / FontHeightPixels) + ScreenStartRow;
+        // set the cursor to where the mouse is.
+        SelectionAnchorCol = (int)((e.X) / FontWidthPixels) + ScreenStartCol;
+        SelectionAnchorRow = (int)((e.Y) / FontHeightPixels) + ScreenStartRow;
 
-        //Capture = true;
-        //shiftKeyDown = true;
+        Capture = true;
 
         //SelectionReleaseCol = SelectionAnchorCol;
         //SelectionReleaseRow = SelectionAnchorRow;
@@ -1137,11 +1262,10 @@ public partial class TextControl : UserControl
 
     private void MouseUpEvent(object sender, MouseEventArgs e)
     {
-        //if (Capture)
-        //{
-        //    Capture = false;
-        //    shiftKeyDown = false;
-        //}
+        if (Capture)
+        {
+            //    Capture = false;
+        }
 
         //if (noMouseUp)
         //{
@@ -1149,9 +1273,9 @@ public partial class TextControl : UserControl
         //    return;
         //}
 
-        //// set the cursor to where the mouse is.
-        //SelectionReleaseCol = (int)((e.X - Padding.Left) / FontWidthPixels) + ScreenStartCol;
-        //SelectionReleaseRow = (int)((e.Y - Padding.Top) / FontHeightPixels) + ScreenStartRow;
+        // set the cursor to where the mouse is.
+        SelectionReleaseCol = (int)((e.X) / FontWidthPixels) + ScreenStartCol;
+        SelectionReleaseRow = (int)((e.Y) / FontHeightPixels) + ScreenStartRow;
 
         //if (SelectionReleaseRow >= ScreenStartRow + ScreenRows)
         //{
@@ -1230,8 +1354,8 @@ public partial class TextControl : UserControl
             ec = Math.Max(SelectionReleaseCol, SelectionReleaseCol);
         }
 
-        float x = ((sc - ScreenStartCol) * FontWidthPixels) + Padding.Left;
-        float y = ((sr - ScreenStartRow) * FontHeightPixels) + Padding.Top;
+        float x = (sc - ScreenStartCol) * FontWidthPixels;
+        float y = (sr - ScreenStartRow) * FontHeightPixels;
 
         float width = (ec - sc + 2) * FontWidthPixels;
         float height = (er - sr + 1) * FontHeightPixels;
@@ -1244,86 +1368,86 @@ public partial class TextControl : UserControl
 
     private void MouseDoubleClickEvent(object sender, MouseEventArgs e)
     {
-        //// select the word under the mouse
-        //int c = (int)((e.X - Padding.Left) / FontWidthPixels) + ScreenStartCol;
-        //long r = (int)((e.Y - Padding.Top) / FontHeightPixels) + ScreenStartRow;
+        // select the word under the mouse
+        int c = (int)(e.X / FontWidthPixels) + ScreenStartCol;
+        long r = (int)(e.Y / FontHeightPixels) + ScreenStartRow;
 
-        //if (r >= 0 && r < Rows)
-        //{
-        //    string line = lines[r];
+        if (r >= 0 && r < Rows)
+        {
+            string line = lines[r];
 
-        //    if (c >= 0 && c < line.Length)
-        //    {
-        //        if (line[c] != ' ')
-        //        {
-        //            int o = c;
+            if (c >= 0 && c < line.Length)
+            {
+                if (GetChar(line, c) != ' ')
+                {
+                    int o = c;
 
-        //            while (c > 0 && line[c] != ' ')
-        //            {
-        //                c--;
-        //            }
+                    //            while (c > 0 && line[c] != ' ')
+                    //            {
+                    //                c--;
+                    //            }
 
-        //            if (c < 0 || line[c] == ' ')
-        //            {
-        //                c++;
-        //            }
+                    //            if (c < 0 || line[c] == ' ')
+                    //            {
+                    //                c++;
+                    //            }
 
-        //            SelectionAnchorRow = r;
-        //            SelectionReleaseCol = c;
+                    //            SelectionAnchorRow = r;
+                    //            SelectionReleaseCol = c;
 
-        //            c = o;
-        //            while (c < line.Length && line[c] != ' ')
-        //            {
-        //                c++;
-        //            }
+                    //            c = o;
+                    //            while (c < line.Length && line[c] != ' ')
+                    //            {
+                    //                c++;
+                    //            }
 
-        //            if (c > line.Length)
-        //            {
-        //                c--;
-        //            }
+                    //            if (c > line.Length)
+                    //            {
+                    //                c--;
+                    //            }
 
-        //            SelectionReleaseRow = r;
-        //            SelectionReleaseCol = c;
+                    //            SelectionReleaseRow = r;
+                    //            SelectionReleaseCol = c;
 
-        //            noMouseUp = true;
-        //            InvalidateSelection();
-        //        }
-        //    }
-        //}
+                    //            noMouseUp = true;
+                    //            InvalidateSelection();
+                }
+            }
+        }
     }
 
     private void MouseMoveEvent(object sender, MouseEventArgs e)
     {
-        //if (e.Button == MouseButtons.Left)
-        //{
-        //    InvalidateSelection();
+        if (e.Button == MouseButtons.Left)
+        {
+            InvalidateSelection();
 
-        //    SelectionReleaseCol = (int)((e.X - Padding.Left) / FontWidthPixels) + ScreenStartCol;
-        //    SelectionReleaseRow = (int)((e.Y - Padding.Top) / FontHeightPixels) + ScreenStartRow;
+            SelectionReleaseCol = (int)((e.X) / FontWidthPixels) + ScreenStartCol;
+            SelectionReleaseRow = (int)((e.Y) / FontHeightPixels) + ScreenStartRow;
 
-        //    if (SelectionReleaseRow >= ScreenStartRow + ScreenRows)
-        //    {
-        //        ScreenStartRow = SelectionReleaseRow - ScreenRows;
-        //        if (ScreenStartRow > Rows)
-        //        {
-        //            ScreenStartRow = Rows;
-        //        }
-        //        Invalidate();
-        //    }
-        //    else if (SelectionReleaseRow < ScreenStartRow)
-        //    {
-        //        ScreenStartRow = SelectionReleaseRow;
-        //        if (ScreenStartRow < 0)
-        //        {
-        //            ScreenStartRow = 0;
-        //        }
-        //        Invalidate();
-        //    }
-        //    else
-        //    {
-        //        InvalidateSelection();
-        //    }
-        //}
+            //    if (SelectionReleaseRow >= ScreenStartRow + ScreenRows)
+            //    {
+            //        ScreenStartRow = SelectionReleaseRow - ScreenRows;
+            //        if (ScreenStartRow > Rows)
+            //        {
+            //            ScreenStartRow = Rows;
+            //        }
+            //        Invalidate();
+            //    }
+            //    else if (SelectionReleaseRow < ScreenStartRow)
+            //    {
+            //        ScreenStartRow = SelectionReleaseRow;
+            //        if (ScreenStartRow < 0)
+            //        {
+            //            ScreenStartRow = 0;
+            //        }
+            //        Invalidate();
+            //    }
+            //    else
+            //    {
+            //        InvalidateSelection();
+            //    }
+        }
     }
 
     [Browsable(false)]
@@ -1388,15 +1512,18 @@ public partial class TextControl : UserControl
         }
     }
 
+    private void InvalidateText()
+    {
+        Invalidate(Rectangle.Round(tcRect));
+    }
+
     private void InvalidateCursorPosition(long cursorRow, int cursorCol)
     {
-        float x = Padding.Left + ((cursorCol - ScreenStartCol) * FontWidthPixels);
-        float y = Padding.Top + ((cursorRow - ScreenStartRow) * FontHeightPixels);
-        PointF start = new PointF(x, y);
-        SizeF size = new SizeF(MathF.Ceiling(FontWidthPixels), MathF.Ceiling(FontHeightPixels));
-
-        RectangleF cursorRect = new RectangleF(start, size);
-        Invalidate(Rectangle.Round(cursorRect));
+        float x = (cursorCol - ScreenStartCol - 1) * FontWidthPixels;
+        float y = (cursorRow - ScreenStartRow - 1) * FontHeightPixels;
+        RectangleF cursorRectangle = new RectangleF(x, y, FontWidthPixels * 2, FontHeightPixels * 2);
+        Rectangle cursorRect = Rectangle.Round(cursorRectangle);
+        Invalidate(cursorRect);
     }
 
     private void LayoutEvent(object sender, LayoutEventArgs e)
@@ -1417,15 +1544,87 @@ public partial class TextControl : UserControl
 
     private void ScrollEvent(object sender, ScrollEventArgs e)
     {
+        ScrollBar sb;
 
+        if (sender is ScrollBar vscroll)
+        {
+            sb = vscroll;
+        }
+        else if (sender is ScrollBar hscroll)
+        {
+            sb = hscroll;
+        }
+        else
+        {
+            return;
+        }
+
+        int delta = e.OldValue - e.NewValue;
+        sb.Value = e.NewValue;
+        if (delta != 0)
+        {
+            if (e.ScrollOrientation == ScrollOrientation.VerticalScroll)
+            {
+                ScrollRowUpDown(delta);
+            }
+            else if (e.ScrollOrientation == ScrollOrientation.HorizontalScroll)
+            {
+                ScrollLeftRight(delta);
+            }
+        }
     }
 
-    internal void ForceGC()
+    internal static void ForceGC()
     {
         // Collect all generations
         GC.Collect();
 
         // Wait for finalizers to complete
         GC.WaitForPendingFinalizers();
+    }
+
+    private void vScrollBar_PreviewKeyDown(object sender, PreviewKeyDownEventArgs e)
+    {
+        PreviewKeyDownEvent(sender, e);
+    }
+
+    private void vScrollBar_KeyPress(object sender, KeyPressEventArgs e)
+    {
+        e.Handled = true;
+    }
+
+    private void hScrollBar_KeyPress(object sender, KeyPressEventArgs e)
+    {
+        e.Handled = true;
+    }
+
+    private void hScrollBar_PreviewKeyDown(object sender, PreviewKeyDownEventArgs e)
+    {
+        PreviewKeyDownEvent(sender, e);
+    }
+
+    private void vScrollBar_Enter(object sender, EventArgs e)
+    {
+        //Focus();
+    }
+
+    private void vScrollBar_KeyDown(object sender, KeyEventArgs e)
+    {
+        e.Handled = true;
+    }
+
+    private void vScrollBar_KeyUp(object sender, KeyEventArgs e)
+    {
+        e.Handled = true;
+    }
+
+    private void hScrollBar_KeyDown(object sender, KeyEventArgs e)
+    {
+        e.Handled = true;
+    }
+
+    private void hScrollBar_KeyUp(object sender, KeyEventArgs e)
+    {
+        e.Handled = true;
     }
 }

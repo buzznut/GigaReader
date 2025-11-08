@@ -16,12 +16,17 @@ public partial class HFViewer : Form
     private bool titleSet;
     private int cursorCol = -1;
     private long cursorRow = -1;
+    private int screenCol = -1;
+    private long screenRow = -1;
     private bool hasFile;
 
     public HFViewer(string file)
     {
         SuspendLayout();
         InitializeComponent();
+
+        screenPos.Text = string.Empty;
+        screenPos.Visible = false;
 
         cursorText.Text = string.Empty;
         cursorText.Visible = false;
@@ -40,6 +45,7 @@ public partial class HFViewer : Form
         textControl.RegisterStateHandler(CursorHandler, TextControl.CursorKey);
         textControl.RegisterStateHandler(ProgressHandler, Lines.LinesMaxLineKey);
         textControl.RegisterStateHandler(SetStatus, Lines.LinesStatusKey);
+        textControl.RegisterStateHandler(ScreenPosHandler, TextControl.ScreenKey);
 
         if (file != null)
         {
@@ -49,6 +55,19 @@ public partial class HFViewer : Form
         }
 
         ResumeLayout();
+    }
+
+    private void ScreenPosHandler(KeyValuePair<string, object> state)
+    {
+        if (state.Value is long[] v && v != null && v.Length == 2)
+        {
+            if (screenRow >= 0 && screenCol >= 0 && screenRow == v[0] && screenCol == v[1]) return;
+
+            screenRow = v[0];
+            screenCol = (int)v[1];
+
+            screenPos.Text = string.Format("Screen: {0},{1}", (screenRow + 1).ToString("0"), (screenCol + 1).ToString("0"));
+        }
     }
 
     private void SetStatus(KeyValuePair<string, object> state)
@@ -100,9 +119,10 @@ public partial class HFViewer : Form
 
     private void LinesLoadedHandler(KeyValuePair<string, object> kvp)
     {
-        bool loaded = kvp.Value is bool;
+        bool loaded = kvp.Value is bool f && f;
         progressBar.Visible = !loaded;
         cursorText.Visible = loaded;
+        screenPos.Visible = loaded;
     }
 
     private void ProgressHandler(KeyValuePair<string, object> state)
@@ -184,7 +204,7 @@ public partial class HFViewer : Form
             long line;
             if (long.TryParse(gt.GetLine(), out line))
             {
-                textControl.GoToLine(line);
+                textControl.GoToLine(line, true);
             }
         }
     }
@@ -283,7 +303,7 @@ public partial class HFViewer : Form
         {
             // Allow some time for background threads to finish
             System.Threading.Thread.Sleep(100);
-            textControl.ForceGC();
+            TextControl.ForceGC();
         });
     }
 
