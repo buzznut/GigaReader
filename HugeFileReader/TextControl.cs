@@ -54,6 +54,7 @@ public partial class TextControl : UserControl
     public bool SearchDown = true;
     public bool UseCase;
     public string TextToFind;
+    public const long MaxClipboardRows = 1024 * 1024;
 
     //[DllImport("user32.dll")]
     //public static extern int GetKeyboardState(byte[] lpKeyState);
@@ -83,6 +84,8 @@ public partial class TextControl : UserControl
         SuspendLayout();
 
         InitializeComponent();
+
+        DoubleBuffered = true;
 
         vScrollBar.Visible = false;
         hScrollBar.Visible = false;
@@ -258,6 +261,7 @@ public partial class TextControl : UserControl
                 {
                     foreach (StateHandler sh in handlers)
                     {
+#pragma warning disable CS0168 // Variable is declared but never used
                         try
                         {
                             sh(new KeyValuePair<string, object>(key, value));
@@ -269,6 +273,7 @@ public partial class TextControl : UserControl
                                 Debugger.Break();
                             }
                         }
+#pragma warning restore CS0168 // Variable is declared but never used
                     }
                 }
             }
@@ -305,10 +310,7 @@ public partial class TextControl : UserControl
         CursorCol = 0;
         ScreenStartRow = 0;
         ScreenStartCol = 0;
-        SelectionAnchorRow = -1;
-        SelectionAnchorCol = -1;
-        SelectionReleaseRow = -1;
-        SelectionReleaseCol = -1;
+        ClearSelection();
         SearchDown = true;
         UseCase = false;
         TextToFind = null;
@@ -330,7 +332,6 @@ public partial class TextControl : UserControl
 
     private void SizeChangedEvent(object sender, EventArgs e)
     {
-
         CalculateScreenDimensions();
     }
 
@@ -359,6 +360,7 @@ public partial class TextControl : UserControl
 
     private void FontChangedEvent(object sender, EventArgs e)
     {
+#pragma warning disable CS0168 // Variable is declared but never used
         try
         {
             CalculateScreenDimensions();
@@ -368,9 +370,10 @@ public partial class TextControl : UserControl
             if (Debugger.IsAttached) Debugger.Break();
             throw;
         }
+#pragma warning restore CS0168 // Variable is declared but never used
     }
 
-    private void CalculateScreenDimensions()
+    public void CalculateScreenDimensions()
     {
         if (!initd) return;
         bool changed = CalculateFontWidth();
@@ -408,18 +411,11 @@ public partial class TextControl : UserControl
 
     private void PaintEvent(object sender, PaintEventArgs e)
     {
+#pragma warning disable CS0168 // Variable is declared but never used
         try
         {
             if (lines == null || lines.Rows < ScreenStartRow + ScreenRows)
             {
-                //if (rows > 0)
-                //{
-                //    sb.Append("Please wait while loading...");
-                //    g.FillRectangle(brushNormalBackground, 0, 0, (FontWidthPixels * sb.Length), FontHeightPixels);
-                //    DrawStringByCharacter(sb, g, 0, brushNormalText, 0);
-                //    sb.Clear();
-                //}
-
                 return;
             }
 
@@ -481,7 +477,6 @@ public partial class TextControl : UserControl
                 long textRow = r + ScreenStartRow;
                 if (textRow >= lines.Rows) continue;
 
-                bool inSelectionRow = sr != -1 && textRow >= sr && textRow <= er;
                 line = lines[textRow];
                 if (line == null)
                 {
@@ -495,6 +490,8 @@ public partial class TextControl : UserControl
                 Brush lastBackground = brushNormalBackground;
                 float xLast = -1;
                 float xStart = 0;
+
+                bool inSelectionRow = sr != -1 && textRow >= sr && textRow <= er;
 
                 sb.Clear();
                 for (int jj = 0; jj <= cols + 1; jj++)
@@ -513,14 +510,11 @@ public partial class TextControl : UserControl
                     {
                         if (inSelectionRow)
                         {
-                            brText = brushSelectionText;
-                            brBackground = brushSelectionBackground;
-
                             // special case for the start and end of the selection
-                            if ((textRow == sr && textCol < sc) || (textRow == er && textCol > ec))
+                            if ((textRow != sr || textCol >= sc) && (textRow != er || textCol < ec))
                             {
-                                brText = brushNormalText;
-                                brBackground = brushNormalBackground;
+                                brText = brushSelectionText;
+                                brBackground = brushSelectionBackground;
                             }
                         }
 
@@ -534,8 +528,8 @@ public partial class TextControl : UserControl
 
                     if (xLast.CompareTo(-1F) == 0)
                     {
-                        lastTextBrush = brText;
-                        lastBackground = brBackground;
+                        //brush = brText;
+                        //lastBackground = brBackground;
                         xLast = x;
                         xStart = 0;
                     }
@@ -589,16 +583,16 @@ public partial class TextControl : UserControl
         catch (Exception ex)
         {
             if (Debugger.IsAttached) Debugger.Break();
-            throw;
         }
+#pragma warning restore CS0168 // Variable is declared but never used
     }
 
-    private void DrawStringByCharacter(StringBuilder sb, Graphics g, float y, Brush lastTextBrush, float xLast)
+    private void DrawStringByCharacter(StringBuilder sb, Graphics g, float y, Brush brush, float xLast)
     {
         float xpart = xLast;
         foreach (char cpart in sb.ToString())
         {
-            g.DrawString(cpart.ToString(), Font, lastTextBrush, xpart, y);
+            g.DrawString(cpart.ToString(), Font, brush, xpart, y);
             xpart += FontWidthPixels;
         }
     }
@@ -622,7 +616,7 @@ public partial class TextControl : UserControl
 
     private bool ProcessKey(KeyEventArgs e)
     {
-        if (lines?.Rows == 0) return false;
+        if (Rows == 0) return false;
 
         controlKeyDown = e.Control;
         shiftKeyDown = e.Shift;
@@ -759,6 +753,31 @@ public partial class TextControl : UserControl
                 if (controlKeyDown)
                 {
                     AskGoTo();
+                    return true;
+                }
+                break;
+            }
+
+            case Keys.Escape:
+            {
+                if (SelectionAnchorRow != -1)
+                {
+                    SelectionAnchorRow = -1;
+                    InvalidateText();
+                    return true;
+                }
+                break;
+            }
+
+            case Keys.A:
+            {
+                if (controlKeyDown && lines != null)
+                {
+                    SelectionAnchorRow = 0;
+                    SelectionAnchorCol = 0;
+                    SelectionReleaseRow = lines.Rows - 1;
+                    SelectionReleaseCol = lines.Cols;
+                    InvalidateText();
                     return true;
                 }
                 break;
@@ -962,7 +981,7 @@ public partial class TextControl : UserControl
         long oldStartRow = ScreenStartRow;
         int oldStartCol = ScreenStartCol;
 
-        if (row > lines.Rows) { row = lines.Rows; }
+        if (row >= lines.Rows) { row = lines.Rows - 1; }
 
         CursorRow = row;
         LineBegin(false);
@@ -1044,12 +1063,12 @@ public partial class TextControl : UserControl
         //string txt = string.Format ("KeyUp: code={0}, data={1}, value={2}, modifiers={3}", state.KeyCode, state.KeyData, state.KeyValue, state.Modifiers);
         //Debug.WriteLine (txt);
 
-        if (e.Shift)
+        if (!e.Shift)
         {
             shiftKeyDown = false;
         }
 
-        if (e.Control)
+        if (!e.Control)
         {
             controlKeyDown = false;
         }
@@ -1113,6 +1132,8 @@ public partial class TextControl : UserControl
 
     public void ToClipboard()
     {
+        if (Rows == 0) return;
+
         long sr;
         int sc;
         long er;
@@ -1132,6 +1153,14 @@ public partial class TextControl : UserControl
             sc = SelectionReleaseCol;
             er = SelectionReleaseRow;
             ec = SelectionReleaseCol;
+        }
+
+        long totalLines = er - sr;
+
+        if (totalLines > MaxClipboardRows)
+        {
+            MessageBox.Show(this, $"Too many rows selected. (rows = 1..{FormatWithSuffix(MaxClipboardRows)})", "Selection Too Large", MessageBoxButtons.OK, MessageBoxIcon.Exclamation);
+            return;
         }
 
         StringBuilder sb = new StringBuilder();
@@ -1163,6 +1192,8 @@ public partial class TextControl : UserControl
 
     private void HandleCursorChange(long oldRow, int oldCol, long oldStartRow, int oldStartCol)
     {
+        if (Rows == 0) return;
+
         cursorIsOn = false;
         InvalidateCursorPosition(oldRow, oldCol);
 
@@ -1248,126 +1279,106 @@ public partial class TextControl : UserControl
 
     private void MouseDownEvent(object sender, MouseEventArgs e)
     {
-        InvalidateSelection();
+        if (Rows == 0) return;
 
-        // set the cursor to where the mouse is.
-        SelectionAnchorCol = (int)((e.X) / FontWidthPixels) + ScreenStartCol;
-        SelectionAnchorRow = (int)((e.Y) / FontHeightPixels) + ScreenStartRow;
+        if (e.Button == MouseButtons.Left)
+        {
+            Capture = true;
 
-        Capture = true;
+            int col = (int)((e.X) / FontWidthPixels) + ScreenStartCol;
+            long row = (int)((e.Y) / FontHeightPixels) + ScreenStartRow;
 
-        //SelectionReleaseCol = SelectionAnchorCol;
-        //SelectionReleaseRow = SelectionAnchorRow;
+            try
+            {
+                if (HasSelection && !shiftKeyDown)
+                {
+                    ClearSelection();
+                    Invalidate();
+                }
+                else if (!HasSelection && !shiftKeyDown)
+                {
+                    // set the cursor to where the mouse is.
+                    SelectionAnchorCol = col;
+                    SelectionAnchorRow = row;
+                    InvalidateSelection();
+                }
+                else if (shiftKeyDown)
+                {
+                    // set the cursor to where the mouse is.
+                    SelectionReleaseCol = col;
+                    SelectionReleaseRow = row;
+                    InvalidateSelection();
+                }
+            }
+            finally
+            {
+                CursorRow = row;
+                CursorCol = col;
+            }
+        }
     }
 
     private void MouseUpEvent(object sender, MouseEventArgs e)
     {
-        if (Capture)
+        if (Rows == 0) return;
+
+        if (e.Button == MouseButtons.Left && shiftKeyDown)
         {
-            //    Capture = false;
+            if (Capture)
+            {
+                Capture = false;
+            }
+
+            // set the cursor to where the mouse is.
+            SelectionReleaseCol = (int)((e.X) / FontWidthPixels) + ScreenStartCol;
+            SelectionReleaseRow = (int)((e.Y) / FontHeightPixels) + ScreenStartRow;
+
+            InvalidateSelection();
         }
-
-        //if (noMouseUp)
-        //{
-        //    noMouseUp = false;
-        //    return;
-        //}
-
-        // set the cursor to where the mouse is.
-        SelectionReleaseCol = (int)((e.X) / FontWidthPixels) + ScreenStartCol;
-        SelectionReleaseRow = (int)((e.Y) / FontHeightPixels) + ScreenStartRow;
-
-        //if (SelectionReleaseRow >= ScreenStartRow + ScreenRows)
-        //{
-        //    ScreenStartRow = SelectionReleaseRow - ScreenRows;
-        //    if (ScreenStartRow > Rows)
-        //    {
-        //        ScreenStartRow = Rows;
-        //    }
-        //    Invalidate();
-        //}
-        //else if (SelectionReleaseRow < ScreenStartRow)
-        //{
-        //    ScreenStartRow = SelectionReleaseRow;
-        //    Invalidate();
-        //}
-        //else
-        //{
-        //    InvalidateSelection();
-        //}
-
-        //if (SelectionReleaseCol >= ScreenStartCol + ScreenCols)
-        //{
-        //    ScreenStartCol = SelectionReleaseCol - ScreenCols;
-        //    if (ScreenStartCol > Cols)
-        //    {
-        //        ScreenStartCol = Cols;
-        //    }
-        //    Invalidate();
-        //}
-        //else if (SelectionReleaseCol < ScreenStartCol)
-        //{
-        //    ScreenStartCol = SelectionReleaseCol;
-        //    Invalidate();
-        //}
-        //else
-        //{
-        //    InvalidateSelection();
-        //}
-
-        ////if (SelectionReleaseRow < 0) SelectionReleaseRow = 0;
-        ////if (SelectionReleaseCol < 0) SelectionReleaseCol = 0;
-        ////if (ScreenStartRow < 0) ScreenStartRow = 0;
-        ////if (ScreenStartCol < 0) ScreenStartCol = 0;
-
-        //if (Math.Abs(SelectionReleaseCol - SelectionReleaseCol) < 1 &&
-        //    Math.Abs(SelectionAnchorRow - SelectionReleaseRow) < 1)
-        //{
-        //    CursorCol = SelectionReleaseCol;
-        //    CursorRow = SelectionReleaseRow;
-        //    SelectionAnchorRow = -1;
-
-        //    InvalidateSelection();
-        //}
+        else if (e.Button == MouseButtons.Right && HasSelection)
+        {
+            ContextMenuStrip cms = new ContextMenuStrip();
+            ToolStripMenuItem tsmiCopy = new ToolStripMenuItem("Copy");
+            tsmiCopy.Click += (s, ea) => ToClipboard();
+            cms.Items.Add(tsmiCopy);
+            cms.Show(this, e.Location);
+        }
     }
 
-    private void InvalidateSelection()
+    private void MouseMoveEvent(object sender, MouseEventArgs e)
     {
-        if (SelectionAnchorRow == -1)
+        if (Rows == 0) return;
+
+        if (e.Button == MouseButtons.Left)
         {
-            return;
+            int col = (int)((e.X) / FontWidthPixels) + ScreenStartCol;
+            long row = (int)((e.Y) / FontHeightPixels) + ScreenStartRow;
+
+            CursorRow = row;
+            CursorCol = col;
+
+            if (HasSelection)
+            {
+                SelectionReleaseCol = col;
+                SelectionReleaseRow = row;
+            }
+
+            InvalidateSelection();
         }
+    }
 
-        int sc;
-        int ec;
-
-        long sr = Math.Min(SelectionAnchorRow, SelectionReleaseRow);
-        long er = Math.Max(SelectionAnchorRow, SelectionReleaseRow);
-        if (sr != er)
-        {
-            sc = 0;
-            ec = ScreenCols;
-        }
-        else
-        {
-            sc = Math.Min(SelectionReleaseCol, SelectionReleaseCol);
-            ec = Math.Max(SelectionReleaseCol, SelectionReleaseCol);
-        }
-
-        float x = (sc - ScreenStartCol) * FontWidthPixels;
-        float y = (sr - ScreenStartRow) * FontHeightPixels;
-
-        float width = (ec - sc + 2) * FontWidthPixels;
-        float height = (er - sr + 1) * FontHeightPixels;
-
-        Rectangle rect = new Rectangle((int)x - 1, (int)y - 1, (int)width + 2, (int)height + 2);
-        Invalidate(oldRect);
-        Invalidate(rect);
-        oldRect = rect;
+    private void ClearSelection()
+    {
+        SelectionAnchorRow = -1;
+        SelectionAnchorCol = -1;
+        SelectionReleaseRow = -1;
+        SelectionReleaseCol = -1;
     }
 
     private void MouseDoubleClickEvent(object sender, MouseEventArgs e)
     {
+        if (Rows == 0) return;
+
         // select the word under the mouse
         int c = (int)(e.X / FontWidthPixels) + ScreenStartCol;
         long r = (int)(e.Y / FontHeightPixels) + ScreenStartRow;
@@ -1378,75 +1389,40 @@ public partial class TextControl : UserControl
 
             if (c >= 0 && c < line.Length)
             {
-                if (GetChar(line, c) != ' ')
+                if (char.IsLetterOrDigit(line[c]))
                 {
                     int o = c;
 
-                    //            while (c > 0 && line[c] != ' ')
-                    //            {
-                    //                c--;
-                    //            }
+                    while (c > 0 && char.IsLetterOrDigit(line[c]))
+                    {
+                        c--;
+                    }
 
-                    //            if (c < 0 || line[c] == ' ')
-                    //            {
-                    //                c++;
-                    //            }
+                    if (c < 0 || !char.IsLetterOrDigit(line[c]))
+                    {
+                        c++;
+                    }
 
-                    //            SelectionAnchorRow = r;
-                    //            SelectionReleaseCol = c;
+                    SelectionAnchorRow = r;
+                    SelectionAnchorCol = c;
 
-                    //            c = o;
-                    //            while (c < line.Length && line[c] != ' ')
-                    //            {
-                    //                c++;
-                    //            }
+                    c = o;
+                    while (c < line.Length && char.IsLetterOrDigit(line[c]))
+                    {
+                        c++;
+                    }
 
-                    //            if (c > line.Length)
-                    //            {
-                    //                c--;
-                    //            }
+                    if (c > line.Length)
+                    {
+                        c--;
+                    }
 
-                    //            SelectionReleaseRow = r;
-                    //            SelectionReleaseCol = c;
+                    SelectionReleaseRow = r;
+                    SelectionReleaseCol = c;
 
-                    //            noMouseUp = true;
-                    //            InvalidateSelection();
+                    InvalidateSelection();
                 }
             }
-        }
-    }
-
-    private void MouseMoveEvent(object sender, MouseEventArgs e)
-    {
-        if (e.Button == MouseButtons.Left)
-        {
-            InvalidateSelection();
-
-            SelectionReleaseCol = (int)((e.X) / FontWidthPixels) + ScreenStartCol;
-            SelectionReleaseRow = (int)((e.Y) / FontHeightPixels) + ScreenStartRow;
-
-            //    if (SelectionReleaseRow >= ScreenStartRow + ScreenRows)
-            //    {
-            //        ScreenStartRow = SelectionReleaseRow - ScreenRows;
-            //        if (ScreenStartRow > Rows)
-            //        {
-            //            ScreenStartRow = Rows;
-            //        }
-            //        Invalidate();
-            //    }
-            //    else if (SelectionReleaseRow < ScreenStartRow)
-            //    {
-            //        ScreenStartRow = SelectionReleaseRow;
-            //        if (ScreenStartRow < 0)
-            //        {
-            //            ScreenStartRow = 0;
-            //        }
-            //        Invalidate();
-            //    }
-            //    else
-            //    {
-            //        InvalidateSelection();
-            //    }
         }
     }
 
@@ -1461,6 +1437,15 @@ public partial class TextControl : UserControl
             }
 
             return lines.IsSearching();
+        }
+    }
+
+    [Browsable(false)]
+    public bool HasSelection
+    {
+        get
+        {
+            return SelectionAnchorRow != -1;
         }
     }
 
@@ -1510,6 +1495,41 @@ public partial class TextControl : UserControl
         {
             InvalidateCursorPosition(CursorRow, CursorCol);
         }
+    }
+
+    private void InvalidateSelection()
+    {
+        if (SelectionAnchorRow == -1)
+        {
+            return;
+        }
+
+        int sc;
+        int ec;
+
+        long sr = Math.Min(SelectionAnchorRow, SelectionReleaseRow);
+        long er = Math.Max(SelectionAnchorRow, SelectionReleaseRow);
+        if (sr != er)
+        {
+            sc = 0;
+            ec = ScreenCols;
+        }
+        else
+        {
+            sc = Math.Min(SelectionReleaseCol, SelectionReleaseCol);
+            ec = Math.Max(SelectionReleaseCol, SelectionReleaseCol);
+        }
+
+        float x = (sc - ScreenStartCol - 1) * FontWidthPixels;
+        float y = (sr - ScreenStartRow - 1) * FontHeightPixels;
+
+        float width = (ec - sc + 2) * FontWidthPixels;
+        float height = (er - sr + 2) * FontHeightPixels;
+
+        Rectangle rect = new Rectangle((int)x, (int)y, (int)width + 2, (int)height + 2);
+        Invalidate(oldRect);
+        Invalidate(rect);
+        oldRect = rect;
     }
 
     private void InvalidateText()
@@ -1626,5 +1646,27 @@ public partial class TextControl : UserControl
     private void hScrollBar_KeyUp(object sender, KeyEventArgs e)
     {
         e.Handled = true;
+    }
+
+    public static string FormatWithSuffix(long value)
+    {
+        // Handle small numbers directly
+        if (Math.Abs(value) < 1024)
+            return value.ToString();
+
+        // Define suffixes
+        string[] suffixes = { "", "K", "M", "G", "T", "P", "E" }; // up to exa
+        int suffixIndex = 0;
+        decimal decimalValue = value;
+
+        // Reduce number until it's under 1000, incrementing suffix index
+        while (Math.Abs(decimalValue) >= 1024 && suffixIndex < suffixes.Length - 1)
+        {
+            decimalValue /= 1024;
+            suffixIndex++;
+        }
+
+        // Format with up to 1 decimal place if needed
+        return string.Format("{0:0.#}{1}", decimalValue, suffixes[suffixIndex]);
     }
 }

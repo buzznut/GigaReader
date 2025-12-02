@@ -2,7 +2,7 @@
 -auto=*update.xml 
 -change=*changelog.txt
 -master=changes.txt
--url='https://raw.githubusercontent.com/buzznut/Huge-File-Reader/refs/heads/master/Installers/HugeFileReader/Output/HugeFileReaderUpdate.xml' 
+-url='https://raw.githubusercontent.com/buzznut/Huge-File-Reader/refs/heads/master/Installers/HugeFileReader/Output/GigaReaderUpdate.xml' 
 -publish='d:\takeoutwrangler-publish'
 -sign='@$[root]Installers\\ProjectsToSign.txt' 
 -cert='$[root]Installers\\selfsigncert.pfx' 

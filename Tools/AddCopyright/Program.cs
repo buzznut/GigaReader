@@ -7,6 +7,7 @@
 
 using System.Security.Cryptography;
 using System.Text;
+using UtilitiesLibrary;
 
 namespace AddCopyright;
 
@@ -130,7 +131,7 @@ static internal class Program
         // read, trim, clean, and create hash for the copyright text
         string copyrightText = ReadCopyrightText(copyrightTextFile).Trim();
         copyrightLines = copyrightText.Split("\n", StringSplitOptions.TrimEntries);
-        newHash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(copyrightText)));
+        newHash = SHA256.HashData(Encoding.UTF8.GetBytes(copyrightText)).ToHex();
 
         Console.WriteLine();
         Console.WriteLine("Cleaned copyright text:");

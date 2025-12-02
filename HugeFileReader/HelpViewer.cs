@@ -101,7 +101,6 @@ public partial class HelpViewer : Form
 
             totalPages = doc.Pages.Count;
             pages = new Stream[totalPages];
-
             currentPage = 0;
 
             if (waitStream != null)
@@ -109,6 +108,8 @@ public partial class HelpViewer : Form
                 pictureBoxView.Image = Image.FromStream(waitStream);
                 disposables.Add(waitStream);
             }
+
+            DrawPage();
         }
 
         ResumeLayout(true);

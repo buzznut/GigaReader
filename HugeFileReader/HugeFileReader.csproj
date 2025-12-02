@@ -9,7 +9,7 @@
     <TargetFramework>net9.0-windows8.0</TargetFramework>
     <Platform Condition=" '$(Platform)' == '' ">x86</Platform>
     <OutputType>WinExe</OutputType>
-    <AssemblyName>HugeFileReader</AssemblyName>
+    <AssemblyName>GigaReader</AssemblyName>
     <UseWindowsForms>true</UseWindowsForms>
     <ImportWindowsDesktopTargets>true</ImportWindowsDesktopTargets>
     <Nullable>warnings</Nullable>
@@ -19,6 +19,7 @@
     <StartupObject>HugeFileReader.Program</StartupObject>
     <SupportedOSPlatformVersion>8.0</SupportedOSPlatformVersion>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <AssemblyTitle>GigaReader</AssemblyTitle>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
     <GenerateAssemblyInfo>False</GenerateAssemblyInfo>
@@ -37,12 +38,21 @@
     <Compile Include="..\GlobalAssemblyInfo.cs" Link="Properties\GlobalAssemblyInfo.cs" />
   </ItemGroup>
   <ItemGroup>
+    <Content Include="..\Documentation\LoadingBitmap.bmp" Link="Resources\LoadingBitmap.bmp">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
     <Content Include="default.ico" Link="default.ico" />
   </ItemGroup>
   <ItemGroup>
+    <None Include="..\Documentation\About.pdf" Link="Resources\About.pdf">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
     <None Include="..\Documentation\default.ico">
       <Pack>True</Pack>
       <PackagePath>\</PackagePath>
+    </None>
+    <None Include="..\Documentation\Help.pdf" Link="Resources\Help.pdf">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
   </ItemGroup>
   <ItemGroup>
@@ -53,7 +63,8 @@
       <RequiredTargetFramework>3.5</RequiredTargetFramework>
     </Reference>
     <PackageReference Include="Autoupdater.NET.Official" Version="1.9.2" />
-    <PackageReference Include="FreeSpire.PDF" Version="10.2.0" />
+    <PackageReference Include="Config.Net" Version="5.2.1" />
+    <PackageReference Include="FreeSpire.PDF" Version="11.11.0" />
     <PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
     <PackageReference Include="System.Data.DataSetExtensions" Version="4.5.0" />
   </ItemGroup>
@@ -62,10 +73,5 @@
   </ItemGroup>
   <ItemGroup>
     <WCFMetadata Include="Service References\" />
-  </ItemGroup>
-  <ItemGroup>
-    <None Update="Resources\About.pdf">
-      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-    </None>
   </ItemGroup>
 </Project>

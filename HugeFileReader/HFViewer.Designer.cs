@@ -49,7 +49,13 @@ partial class HFViewer
         optionsToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
         preferencesToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
         fontToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
-        screenPos = new System.Windows.Forms.ToolStripTextBox();
+        screenPos = new System.Windows.Forms.ToolStripMenuItem();
+        helpToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+        viewHelpToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+        toolStripSeparator3 = new System.Windows.Forms.ToolStripSeparator();
+        updateToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+        toolStripSeparator4 = new System.Windows.Forms.ToolStripSeparator();
+        aboutToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
         statusStrip = new System.Windows.Forms.StatusStrip();
         progressBar = new System.Windows.Forms.ToolStripProgressBar();
         statusText = new System.Windows.Forms.ToolStripStatusLabel();
@@ -57,13 +63,14 @@ partial class HFViewer
         openFileDialog = new System.Windows.Forms.OpenFileDialog();
         textControl = new TextControl();
         timerStatus = new System.Windows.Forms.Timer(components);
+        fontDialog = new System.Windows.Forms.FontDialog();
         menuStrip.SuspendLayout();
         statusStrip.SuspendLayout();
         SuspendLayout();
         // 
         // menuStrip
         // 
-        menuStrip.Items.AddRange(new System.Windows.Forms.ToolStripItem[] { fileToolStripMenuItem, editToolStripMenuItem, findToolStripMenuItem, optionsToolStripMenuItem, screenPos });
+        menuStrip.Items.AddRange(new System.Windows.Forms.ToolStripItem[] { fileToolStripMenuItem, editToolStripMenuItem, findToolStripMenuItem, optionsToolStripMenuItem, screenPos, helpToolStripMenuItem });
         menuStrip.Location = new System.Drawing.Point(0, 0);
         menuStrip.Name = "menuStrip";
         menuStrip.Padding = new System.Windows.Forms.Padding(7, 2, 0, 2);
@@ -177,24 +184,61 @@ partial class HFViewer
         // preferencesToolStripMenuItem
         // 
         preferencesToolStripMenuItem.Name = "preferencesToolStripMenuItem";
-        preferencesToolStripMenuItem.Size = new System.Drawing.Size(180, 22);
+        preferencesToolStripMenuItem.Size = new System.Drawing.Size(144, 22);
         preferencesToolStripMenuItem.Text = "Preferences...";
         preferencesToolStripMenuItem.Click += preferencesToolStripMenuItem_Click;
         // 
         // fontToolStripMenuItem
         // 
         fontToolStripMenuItem.Name = "fontToolStripMenuItem";
-        fontToolStripMenuItem.Size = new System.Drawing.Size(180, 22);
+        fontToolStripMenuItem.Size = new System.Drawing.Size(144, 22);
         fontToolStripMenuItem.Text = "Font...";
+        fontToolStripMenuItem.Click += fontToolStripMenuItem_Click;
         // 
         // screenPos
         // 
         screenPos.Alignment = System.Windows.Forms.ToolStripItemAlignment.Right;
-        screenPos.BorderStyle = System.Windows.Forms.BorderStyle.None;
         screenPos.Name = "screenPos";
-        screenPos.ReadOnly = true;
-        screenPos.Size = new System.Drawing.Size(150, 20);
-        screenPos.TextBoxTextAlign = System.Windows.Forms.HorizontalAlignment.Center;
+        screenPos.Size = new System.Drawing.Size(53, 20);
+        screenPos.Text = "screen";
+        // 
+        // helpToolStripMenuItem
+        // 
+        helpToolStripMenuItem.DropDownItems.AddRange(new System.Windows.Forms.ToolStripItem[] { viewHelpToolStripMenuItem, toolStripSeparator3, updateToolStripMenuItem, toolStripSeparator4, aboutToolStripMenuItem });
+        helpToolStripMenuItem.Name = "helpToolStripMenuItem";
+        helpToolStripMenuItem.Size = new System.Drawing.Size(44, 20);
+        helpToolStripMenuItem.Text = "Help";
+        // 
+        // viewHelpToolStripMenuItem
+        // 
+        viewHelpToolStripMenuItem.Name = "viewHelpToolStripMenuItem";
+        viewHelpToolStripMenuItem.Size = new System.Drawing.Size(180, 22);
+        viewHelpToolStripMenuItem.Text = "View Help";
+        viewHelpToolStripMenuItem.Click += viewHelpToolStripMenuItem_Click;
+        // 
+        // toolStripSeparator3
+        // 
+        toolStripSeparator3.Name = "toolStripSeparator3";
+        toolStripSeparator3.Size = new System.Drawing.Size(177, 6);
+        // 
+        // updateToolStripMenuItem
+        // 
+        updateToolStripMenuItem.Name = "updateToolStripMenuItem";
+        updateToolStripMenuItem.Size = new System.Drawing.Size(180, 22);
+        updateToolStripMenuItem.Text = "Check for Updates";
+        updateToolStripMenuItem.Click += updateToolStripMenuItem_Click;
+        // 
+        // toolStripSeparator4
+        // 
+        toolStripSeparator4.Name = "toolStripSeparator4";
+        toolStripSeparator4.Size = new System.Drawing.Size(177, 6);
+        // 
+        // aboutToolStripMenuItem
+        // 
+        aboutToolStripMenuItem.Name = "aboutToolStripMenuItem";
+        aboutToolStripMenuItem.Size = new System.Drawing.Size(180, 22);
+        aboutToolStripMenuItem.Text = "About";
+        aboutToolStripMenuItem.Click += aboutToolStripMenuItem_Click;
         // 
         // statusStrip
         // 
@@ -219,6 +263,7 @@ partial class HFViewer
         statusText.Name = "statusText";
         statusText.Size = new System.Drawing.Size(609, 17);
         statusText.Spring = true;
+        statusText.Text = "status";
         statusText.TextAlign = System.Drawing.ContentAlignment.MiddleLeft;
         // 
         // cursorText
@@ -244,7 +289,7 @@ partial class HFViewer
         // 
         // timerStatus
         // 
-        timerStatus.Interval = 30000;
+        timerStatus.Interval = 200;
         timerStatus.Tick += timerStatus_Tick;
         // 
         // HFViewer
@@ -302,6 +347,13 @@ partial class HFViewer
     private TextControl textControl;
     private System.Windows.Forms.Timer timerStatus;
     private System.Windows.Forms.ToolStripMenuItem fontToolStripMenuItem;
-    private System.Windows.Forms.ToolStripTextBox screenPos;
+    private System.Windows.Forms.ToolStripMenuItem screenPos;
+    private System.Windows.Forms.FontDialog fontDialog;
+    private System.Windows.Forms.ToolStripMenuItem helpToolStripMenuItem;
+    private System.Windows.Forms.ToolStripMenuItem viewHelpToolStripMenuItem;
+    private System.Windows.Forms.ToolStripSeparator toolStripSeparator3;
+    private System.Windows.Forms.ToolStripMenuItem updateToolStripMenuItem;
+    private System.Windows.Forms.ToolStripSeparator toolStripSeparator4;
+    private System.Windows.Forms.ToolStripMenuItem aboutToolStripMenuItem;
 }
 

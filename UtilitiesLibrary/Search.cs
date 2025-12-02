@@ -30,7 +30,7 @@ public class Search : IDisposable
         { SearchStateKey, typeof(string) }, 
         { SearchErrorKey, typeof(Exception) },
         { SearchCursorKey, typeof(long[]) },
-        { FinishedKey, typeof(bool) },
+        { FinishedKey, typeof(string) },
         { SearchProgressKey, typeof(int) },
         { SearchElapsedKey, typeof(TimeSpan) },
         { SearchReasonKey, typeof(string) }
@@ -140,7 +140,7 @@ public class Search : IDisposable
             {
                 state[SearchErrorKey] = e.Error;
                 state[SearchReasonKey] = e.Error.Message;
-                state[FinishedKey] = true;
+                state[FinishedKey] = "Error";
                 return;
             }
 
@@ -148,17 +148,15 @@ public class Search : IDisposable
             {
                 state[SearchStateKey] = "Cancelled";
                 state[SearchReasonKey] = "File load cancelled";
-                state[FinishedKey] = true;
+                state[FinishedKey] = "Cancelled";
                 return;
             }
 
-            if (found)
-            {
-                state[SearchCursorKey] = (long[])[searchRow, searchCol];
-                state[FinishedKey] = true;
-                state[SearchStateKey] = "Done";
-                state[SearchProgressKey] = 100;
-            }
+            state[SearchCursorKey] = (long[])[searchRow, searchCol];
+            state[SearchStateKey] = "Done";
+            state[SearchReasonKey] = found ? "Found" : "Not found";
+            state[SearchProgressKey] = 1000;
+            state[FinishedKey] = found ? "Found" : "Not found";
         }
         finally
         {
@@ -191,7 +189,7 @@ public class Search : IDisposable
 
             searchCount++;
 
-            int percent = (int)((searchCount * 100) / lines.Rows);
+            int percent = (int)(searchCount * 1000 / lines.Rows);
             if (percent != lastPercent)
             {
                 lastPercent = percent;

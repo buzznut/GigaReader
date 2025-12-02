@@ -1,0 +1,7 @@
+﻿<?xml version="1.0" encoding="UTF-8"?>
+<item>
+  <version>1.0.428.1285</version>
+  <url>https://raw.githubusercontent.com/buzznut/Huge-File-Reader/refs/heads/master/Installers/HugeFileReader/Output/GigaReaderUpdate.xml/GigaReaderSetup.exe</url>
+  <changelog>https://raw.githubusercontent.com/buzznut/Huge-File-Reader/refs/heads/master/Installers/HugeFileReader/Output/GigaReaderUpdate.xml/GigaReaderChangelog.txt</changelog>
+  <mandatory>false</mandatory>
+</item>

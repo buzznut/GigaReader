@@ -2,7 +2,7 @@
 ; SEE THE DOCUMENTATION FOR DETAILS ON CREATING INNO SETUP SCRIPT FILES!
 
 #define MyAppPublisher "Stewart A. Nutter"
-#define MyAppName "HugeFileReader"
+#define MyAppName "GigaReader"
 #define MyAppExeName MyAppName + ".exe"
 #define MySourceDir "C:\Users\sanut\OneDrive\GitCode\HugeFileReader\HugeFileReader\bin\Release\net9.0-windows8.0\"
 #define MySourceExe MySourceDir + "\" + MyAppExeName
@@ -44,17 +44,17 @@ WizardStyle=modern
 Name: "english"; MessagesFile: "compiler:Default.isl"
 
 [Tasks]
-Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked; Components: HugeFileReader
+Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked; Components: GigaReader
 
 [Types]
-Name: "full"; Description: "Install HugeFileReaderUI"
-Name: "onlyHugeFileReader"; Description: "Install Only HugeFileReaderUI"
+Name: "full"; Description: "Install GigaReaderUI"
+Name: "onlyGigaReader"; Description: "Install Only GigaReaderUI"
 
 [Components]
-Name: "HugeFileReader"; Description: "HugeFileReader only"; Types: onlyHugeFileReader full
+Name: "GigaReader"; Description: "GigaReader only"; Types: onlyGigaReader full
 
 [Files]
-Source: "{#MySourceDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs; Excludes: "*.wl,*.development.json,*.pdb,appsettings.json,launchSettings.json"; Components: HugeFileReader
+Source: "{#MySourceDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs; Excludes: "*.wl,*.development.json,*.pdb,appsettings.json,launchSettings.json"; Components: GigaReader
 ; NOTE: Don't use "Flags: ignoreversion" on any shared system files
 
 [Icons]

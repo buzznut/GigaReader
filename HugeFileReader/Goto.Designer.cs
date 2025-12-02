@@ -39,7 +39,6 @@ namespace HugeFileReader
             labelLineNumber = new System.Windows.Forms.Label();
             tbLine = new System.Windows.Forms.TextBox();
             bOkay = new System.Windows.Forms.Button();
-            bCancel = new System.Windows.Forms.Button();
             SuspendLayout();
             // 
             // labelLineNumber
@@ -63,45 +62,35 @@ namespace HugeFileReader
             // 
             // bOkay
             // 
+            bOkay.Anchor = System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Right;
             bOkay.DialogResult = System.Windows.Forms.DialogResult.OK;
-            bOkay.Location = new System.Drawing.Point(52, 73);
+            bOkay.Location = new System.Drawing.Point(197, 63);
             bOkay.Margin = new System.Windows.Forms.Padding(4, 3, 4, 3);
             bOkay.Name = "bOkay";
-            bOkay.Size = new System.Drawing.Size(88, 27);
+            bOkay.Size = new System.Drawing.Size(40, 23);
             bOkay.TabIndex = 2;
-            bOkay.Text = "OK";
+            bOkay.Text = "Go";
             bOkay.UseVisualStyleBackColor = true;
-            // 
-            // bCancel
-            // 
-            bCancel.DialogResult = System.Windows.Forms.DialogResult.Cancel;
-            bCancel.Location = new System.Drawing.Point(147, 73);
-            bCancel.Margin = new System.Windows.Forms.Padding(4, 3, 4, 3);
-            bCancel.Name = "bCancel";
-            bCancel.Size = new System.Drawing.Size(88, 27);
-            bCancel.TabIndex = 3;
-            bCancel.Text = "Cancel";
-            bCancel.UseVisualStyleBackColor = true;
             // 
             // Goto
             // 
             AcceptButton = bOkay;
             AutoScaleDimensions = new System.Drawing.SizeF(7F, 15F);
             AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
-            CancelButton = bCancel;
-            ClientSize = new System.Drawing.Size(244, 119);
-            Controls.Add(bCancel);
+            ClientSize = new System.Drawing.Size(244, 94);
             Controls.Add(bOkay);
             Controls.Add(tbLine);
             Controls.Add(labelLineNumber);
             Icon = (System.Drawing.Icon)resources.GetObject("$this.Icon");
             Margin = new System.Windows.Forms.Padding(4, 3, 4, 3);
             MaximizeBox = false;
+            MaximumSize = new System.Drawing.Size(260, 133);
             MinimizeBox = false;
+            MinimumSize = new System.Drawing.Size(260, 133);
             Name = "Goto";
             ShowInTaskbar = false;
             StartPosition = System.Windows.Forms.FormStartPosition.CenterParent;
-            Text = "Goto";
+            Text = "Goto Line";
             ResumeLayout(false);
             PerformLayout();
 
@@ -112,6 +101,5 @@ namespace HugeFileReader
         private System.Windows.Forms.Label labelLineNumber;
         private System.Windows.Forms.TextBox tbLine;
         private System.Windows.Forms.Button bOkay;
-        private System.Windows.Forms.Button bCancel;
     }
 }

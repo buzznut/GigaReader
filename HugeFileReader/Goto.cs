@@ -32,7 +32,14 @@ public partial class Goto : Form
 
     private void tbLine_TextChanged(object sender, EventArgs e)
     {
-        long row = Convert.ToInt64(tbLine.Text);
-        bOkay.Enabled = row >= 1 && row <= maxRows;
+        try
+        {
+            long row = Convert.ToInt64(tbLine.Text);
+            bOkay.Enabled = row >= 1 && row <= maxRows;
+        }
+        catch
+        {
+            bOkay.Enabled = false;
+        }
     }
 }

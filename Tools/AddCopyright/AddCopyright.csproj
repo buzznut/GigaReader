@@ -21,4 +21,7 @@
   <ItemGroup>
     <Compile Include="..\..\GlobalAssemblyInfo.cs" Link="GlobalAssemblyInfo.cs" />
   </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\UtilitiesLibrary\UtilitiesLibrary.csproj" />
+  </ItemGroup>
 </Project>
