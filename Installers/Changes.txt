@@ -6,4 +6,5 @@
 // --
 // If Git commits are included then previously included git commits are included as
 // "-git(id)=CommitText" to prevent multiple inclusions.
-
+-all=Initial release of GigaReader, a huge file reader for Windows.
+-all=Fix issue with updating installer.
