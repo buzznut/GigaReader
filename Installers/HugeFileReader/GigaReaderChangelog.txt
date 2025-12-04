@@ -1,3 +1,12 @@
+1.0.428.1285 - 2025/12/04 08:15:14
+    1) Updates to AutoUpdate config files.
+
+1.0.428.1285 - 2025/12/04 08:12:49
+    1) Minor bug fixes, performance improvements, or setup changes.
+
+1.0.428.1285 - 2025/12/03 07:52:05
+    1) Minor bug fixes, performance improvements, or setup changes.
+
 1.0.428.1285 - 2025/12/03 07:32:19
     1) Fix issue with updating installer.
 

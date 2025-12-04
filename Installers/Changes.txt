@@ -8,3 +8,4 @@
 // "-git(id)=CommitText" to prevent multiple inclusions.
 -all=Initial release of GigaReader, a huge file reader for Windows.
 -all=Fix issue with updating installer.
+-all=Updates to AutoUpdate config files.

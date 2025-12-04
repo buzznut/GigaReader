@@ -28,7 +28,7 @@ public partial class HFViewer : Form
     private Status status = new Status();
     private IConfig config;
     private string jsonConfig;
-    public const string UpdateUrl = "https://raw.githubusercontent.com/buzznut/TakeoutWrangler/master/Installers/GigaReader/Output/GigaReader.xml";
+    public const string UpdateUrl = "https://raw.githubusercontent.com/buzznut/HugeFileReader/master/Installers/HugeFileReader/Output/GigaReaderUpdate.xml";
 
     [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
     public string FilePath { get; set; }
