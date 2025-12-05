@@ -1,3 +1,10 @@
+//  <@$&< copyright begin >&$@> 24fe144c2255e2f7ccb65514965434a807ae8998c9c4d01902a628f980431c98:20241017.A:2025:12:5:9:40
+// =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+// Copyright © 2024-2025 Stewart A. Nutter - All Rights Reserved.
+// No warranty is implied or given.
+// =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+// <@$&< copyright end >&$@>
+
 using AutoUpdaterDotNET;
 using Config.Net;
 using System;
@@ -9,6 +16,7 @@ using System.IO;
 using System.Net;
 using System.Net.NetworkInformation;
 using System.Runtime.Versioning;
+using System.Security.Policy;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using UtilitiesLibrary;
@@ -108,9 +116,14 @@ public partial class HFViewer : Form
                 }
                 else
                 {
-                    MessageBox.Show(
-                        "You are running the latest version.", "Updates",
-                        MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    DialogResult result = MessageBox.Show(
+                        "You are running the latest version. Upgrade anyway?", "Updates",
+                        MessageBoxButtons.YesNo, MessageBoxIcon.Information);
+
+                    if (result == DialogResult.Yes)
+                    {
+                        AutoUpdater.ShowUpdateForm(args);
+                    }
                 }
                 break;
 
@@ -434,7 +447,23 @@ public partial class HFViewer : Form
 
     private void updateToolStripMenuItem_Click(object sender, EventArgs e)
     {
-        AutoUpdater.Start(UpdateUrl);
+        try
+        {
+            // Use ProcessStartInfo for better compatibility with .NET Core/5+
+            var psi = new ProcessStartInfo
+            {
+                FileName = UpdateUrl,
+                UseShellExecute = true // Ensures it opens in the default browser
+            };
+            Process.Start(psi);
+
+            AutoUpdater.Start(UpdateUrl);
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"Failed to open URL.\nError: {ex.Message}",
+                            "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+        }
     }
 
     private void aboutToolStripMenuItem_Click(object sender, EventArgs e)

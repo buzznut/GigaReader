@@ -1,30 +1,7 @@
-//  <@$&< copyright begin >&$@> EB4980E059428FA8CF9B26CC8D6585B5BC503999B091CE759A09FC6BC1ACB13D:20230504.A:2023:11:16:13:44
+//  <@$&< copyright begin >&$@> 24fe144c2255e2f7ccb65514965434a807ae8998c9c4d01902a628f980431c98:20241017.A:2025:12:5:9:40
 // =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
-// Copyright (C) 2022-2023 Stewart A. Nutter - All Rights Reserved.
-// 
-// This software application and source code is copyrighted and is licensed
-// for use by your educational institution only. The license is limited by the
-// terms in the license key without exception. No portion of this software may
-// be played by, shared with, sold to, given to, or possessed by, any other
-// entity without written consent from Stewart A. Nutter or his legal
-// representative.
-// 
-// This license does not allow the removal or code changes that cause the
-// ignoring or skipping of the license key, tampering with the license key
-// software, or modifying the copyright in any form.
-// 
-// This software is licensed "as is" and no warranty is implied or given.
-// 
-// It is expected that students will use this source code and related servers
-// for the sole purpose of furthering their education.
-// 
-// Any software created by your educational institution, or purchased by your
-// educational institution that use the included APIs in this software are your
-// intellectual property and are not restricted by this copyright or license.
-// 
-// Stewart A. Nutter
-// 605 E. Main St.
-// Mount Horeb, WI  53572
+// Copyright © 2024-2025 Stewart A. Nutter - All Rights Reserved.
+// No warranty is implied or given.
 // =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 // <@$&< copyright end >&$@>
 
